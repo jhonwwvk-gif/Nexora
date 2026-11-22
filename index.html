@@ -4190,7 +4190,53 @@ const music = (() => {
 if (location.search.includes('debug')) window.__music = music;   // só para testes
 
 // ---------------------------------------------------------------- online: ID do jogador, amigos, convites (banco compartilhado do artefato)
-// PROVISÓRIO: só ID, busca, lista de amigos, status online e convite/aceite. A partida em tempo real com amigos ainda NÃO existe.
+// Dados no Firebase Realtime Database (projeto nexora-5f8b0). PROVISÓRIO: só ID, busca, lista de amigos, status online e convite/aceite. A partida em tempo real com amigos ainda NÃO existe.
+// ---------------------------------------------------------------- Firebase (Realtime Database via REST, sem SDK): mesmo formato do banco do artefato
+const FB = {
+  apiKey: 'AIzaSyDihEGOdARM3mIEmbE8dvpYuB2XMBnfU2A', projectId: 'nexora-5f8b0',
+  db: 'https://nexora-5f8b0-default-rtdb.firebaseio.com',
+};
+const FBase = (() => {
+  const ls = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* ok */ } } };
+  let tok = null, tokExp = 0, uid = null, ready = null;
+  async function post(url, body, form) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': form ? 'application/x-www-form-urlencoded' : 'application/json' }, body: form ? body : JSON.stringify(body) });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  async function auth() {                                          // login anônimo (se estiver ligado no Firebase); sem ele, segue sem token
+    let st = null; try { st = JSON.parse(ls.get('nexora_fbauth') || 'null'); } catch (e) { st = null; }
+    try {
+      if (st && st.refresh) {
+        const j = await post('https://securetoken.googleapis.com/v1/token?key=' + FB.apiKey, 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(st.refresh), true);
+        tok = j.id_token; uid = j.user_id; tokExp = Date.now() + (Number(j.expires_in) - 120) * 1000; ls.set('nexora_fbauth', JSON.stringify({ refresh: j.refresh_token || st.refresh })); return;
+      }
+    } catch (e) { /* tenta criar de novo */ }
+    try {
+      const j = await post('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + FB.apiKey, { returnSecureToken: true });
+      tok = j.idToken; uid = j.localId; tokExp = Date.now() + (Number(j.expiresIn) - 120) * 1000; ls.set('nexora_fbauth', JSON.stringify({ refresh: j.refreshToken }));
+    } catch (e) { tok = null; uid = null; }
+  }
+  async function token() { if (!ready) ready = auth(); await ready; if (tok && Date.now() > tokExp) { ready = auth(); await ready; } return tok; }
+  async function rest(method, path, body) {
+    const t = await token(), url = FB.db + '/' + path + '.json' + (t ? '?auth=' + encodeURIComponent(t) : '');
+    const r = await fetch(url, method === 'GET' ? undefined : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  }
+  const snap = (v) => ({ exists: v !== null && v !== undefined, data: () => v });
+  const doc = (path) => ({
+    get: async () => snap(await rest('GET', path)),
+    set: (obj) => rest('PUT', path, obj),
+    onSnapshot(cb, err) {                                        // atualização por consulta a cada 4 s (só avisa quando muda)
+      let last, dead = false;
+      const tick = async () => { if (dead) return; try { const v = await rest('GET', path), j = JSON.stringify(v); if (j !== last) { last = j; cb(snap(v)); } } catch (e) { if (err) err(e); } };
+      tick(); const iv = setInterval(tick, 4000); return () => { dead = true; clearInterval(iv); };
+    },
+  });
+  return { async connect() { await token(); try { await rest('GET', 'ping'); } catch (e) { return null; } return { doc }; }, get uid() { return uid; } };
+})();
+
 const Online = (() => {
   const mem = {};
   const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return mem[k] || null; } };
@@ -4208,7 +4254,8 @@ const Online = (() => {
   const lookup = async (pid) => { if (!db) return null; try { const sn = await db.doc('players/' + String(pid).trim().toUpperCase()).get(); return sn.exists ? sn.data() : null; } catch (e) { return null; } };
   const isOnline = (p) => !!p && Date.now() - (p.seen || 0) < 70000;
   async function init() {
-    try { if (window.claude && claude.use) { db = await claude.use('db'); const u = await claude.use('user'); uid = u && u.id ? await u.id() : null; } } catch (e) { db = null; }
+    try { db = await FBase.connect(); uid = FBase.uid; } catch (e) { db = null; }
+    if (!db) { try { if (window.claude && claude.use) { db = await claude.use('db'); const u = await claude.use('user'); uid = u && u.id ? await u.id() : null; } } catch (e) { db = null; } }   // alternativa: banco do artefato
     if (!db) return;
     try {                                                              // ID já usado por outra conta: gera outro
       for (let k = 0; k < 5; k++) { const sn = await db.doc('players/' + id).get(); const d = sn.exists ? sn.data() : null; if (!d || !uid || !d.owner || d.owner === uid) break; id = genId(); lsSet('nexora_pid', id); }
@@ -4955,7 +5002,7 @@ function openFriends() {
   const w = openModal(`<h2 class="d">AMIGOS</h2><div class="fr-win">
     <div class="me"><span class="d">SEU ID:</span><b class="d" id="fr-id">${Online.id}</b><button class="pill-btn d mini" id="fr-copy">COPIAR</button></div>
     <div class="row"><input id="fr-in" maxlength="8" placeholder="ID DO AMIGO (NX……)" aria-label="ID do amigo"><button class="pill-btn green d mini" id="fr-add">ADICIONAR</button></div>
-    <div class="msg d" id="fr-msg">${Online.available ? '' : 'Online indisponível: abra o jogo pelo link do artefato, logado, com acesso de Colaborador.'}</div>
+    <div class="msg d" id="fr-msg">${Online.available ? '' : 'Online indisponível agora. Confira sua internet e tente de novo.'}</div>
     <div class="fl" id="fr-list"></div>
     ${Online.partner ? '<div class="row"><button class="pill-btn d mini" id="fr-leave">SAIR DO GRUPO COM ' + esc(Online.partner.name) + '</button></div>' : ''}</div>`);
   const msg = (t) => { $('#fr-msg').textContent = t; };
