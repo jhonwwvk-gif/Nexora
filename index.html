@@ -3547,8 +3547,19 @@ function createGame(host, A, hooks) {
     if (shakeT > 0) shakeT -= dt;
   }
   function glide(o, dt, rate) { if (o.tx === undefined) return; const k = Math.min(1, dt * rate); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
+  // O Realtime Database manda a foto aos pedaços: listas viram objetos com chaves 0,1,2, listas vazias somem e itens removidos deixam buracos. Aqui a foto volta ao formato que o jogo espera.
+  const NET_LISTS = ['m', 'bw', 'bu', 'bb', 'eb', 'fl', 'wv', 'bl', 'ms', 'bo', 'cl', 'mk', 'bf', 'pp', 'rf', 'or', 'bs', 'df', 'bx', 'te'];
+  function fixNet(v) {
+    if (v === null || typeof v !== 'object') return v;
+    if (Array.isArray(v)) { const r = []; for (const x of v) if (x !== undefined && x !== null) r.push(fixNet(x)); return r; }
+    const ks = Object.keys(v);
+    if (ks.length && ks.every((k) => /^\d+$/.test(k))) return ks.map(Number).sort((a, b) => a - b).map((k) => v[k]).filter((x) => x !== undefined && x !== null).map(fixNet);
+    const r = {}; for (const k of ks) r[k] = fixNet(v[k]);
+    return r;
+  }
+  function fixSnapTop(S) { const r = fixNet(S); for (const k of NET_LISTS) if (!Array.isArray(r[k])) r[k] = []; if (!Array.isArray(r.u)) r.u = []; return r; }
   function clientUpdate(dt) {
-    if (NET.snap && NET.got !== NET.applied) { NET.applied = NET.got; applySnap(NET.snap); }
+    if (NET.snap && NET.got !== NET.applied) { NET.applied = NET.got; try { applySnap(fixSnapTop(NET.snap)); } catch (e) { if (!NET.err) { NET.err = 1; try { console.warn('foto da partida ignorada:', e && e.message); } catch (x) { /* ok */ } } } }
     if (ended) { endT -= dt; if (endT <= 0 && !endSent) { endSent = true; hooks && hooks.onEnd && hooks.onEnd(ended === 'win'); } }
     else if (!NET.lost && performance.now() - NET.snapAt > (NET.got ? 8000 : 15000)) { NET.lost = true; hooks && hooks.onNetLost && hooks.onNetLost(); }
     cool -= dt;
@@ -4958,7 +4969,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v99</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v100</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
