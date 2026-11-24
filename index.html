@@ -2816,7 +2816,7 @@ function createGame(host, A, hooks) {
     robot.x = GM_RUMBLE.door[0]; robot.y = GM_RUMBLE.door[1]; robot.emerge = 0; robot.moving = false; robot.walk = 0; robot.roar = 0;
     cam.x = Math.max(0, Math.min(ar.w - GM_VW, robot.x - GM_VW / 2)); cam.y = Math.max(0, Math.min(ar.h - GM_VH, robot.y - GM_VH * 0.55));
   }
-  function skipIntro() { if (!intro) return; robot.x = GM_ROBOT.x; robot.y = GM_ROBOT.y; robot.emerge = 1; robot.moving = false; robot.roar = 0; if (intro.stage !== 'pan') { intro.stage = 'pan'; intro.pt = 0; } }
+  function skipIntro() { if (!intro || NET.role === 'client') return; robot.x = GM_ROBOT.x; robot.y = GM_ROBOT.y; robot.emerge = 1; robot.moving = false; robot.roar = 0; if (intro.stage !== 'pan') { intro.stage = 'pan'; intro.pt = 0; } }
   function updateIntro(dt) {
     intro.t += dt;
     if (intro.stage === 'emerge') { robot.emerge = Math.min(1, intro.t / 1.8); if (intro.t >= 2.0) intro.stage = 'walk'; }
@@ -3456,7 +3456,7 @@ function createGame(host, A, hooks) {
       bu: bullets.map((b) => Object.assign(pk(b), { fk: b.fx === FX.hugiSuper ? 1 : 0 })), bb: bbul.map((b) => pk(b)), eb: ebul.map((b) => pk(b)), fl: flames.map((b) => pk(b)), wv: waves.map((b) => pk(b)),
       bl: balls.map((b) => pk(b)), ms: missiles.map((b) => pk(b)), bo: booms.map((b) => pk(b)), cl: claws.map((b) => pk(b)), mk: marks.map((b) => pk(b)), bf: bfx.map((b) => pk(b)),
       pp: pops.slice(-10).map((b) => pk(b)), rf: rfx.map((b) => pk(b)), or: orbs.map((b) => pk(b)), bs: bursts.map((b) => pk(b)), df: dfx.filter((f) => f.k === 'ring' || f.k === 'pring').map((b) => pk(b)),
-      bx: ar.boxes.map((b) => Math.round(b.hp)), te: tileEv.slice(), ws: wolfShot ? pk(wolfShot) : null, sh: shakeT > 0 ? 1 : 0, ts: Date.now() };
+      bx: ar.boxes.map((b) => Math.round(b.hp)), te: tileEv.slice(), ws: wolfShot ? pk(wolfShot) : null, sh: shakeT > 0 ? 1 : 0, ts: Date.now(), ii: intro ? [intro.stage, Math.round(intro.t * 100) / 100] : 0 };
     return S;
   }
   function ensureSprites(id) {
@@ -3479,6 +3479,7 @@ function createGame(host, A, hooks) {
   }
   function applySnap(S) {
     NET.snapAt = performance.now();
+    if (S.ii && S.ii.length) { const st = String(S.ii[0]), tt = Number(S.ii[1]) || 0; if (!intro) intro = { t: tt, stage: st, rt: 0, pt: 0 }; else { intro.stage = st; intro.t = tt; } } else if (intro) intro = null;   // abertura do robô: o amigo vê a mesma que o dono
     const nu = S.u.length, me = NET.seat;
     while (bots.length < nu - 1) bots.push(NEWU());
     bots.length = Math.max(0, nu - 1);
@@ -3566,7 +3567,7 @@ function createGame(host, A, hooks) {
     if (hero.spawn > 0) hero.spawn -= dt; for (const b of bots) if (b.spawn > 0) b.spawn -= dt;
     if (hero.dead > 0) hero.dead = Math.max(0.001, hero.dead - dt);
     const alive = !(hero.dead > 0);
-    const [ix, iy] = alive && !ended && !hero.dash ? input() : [0, 0];
+    const [ix, iy] = alive && !ended && !intro && !hero.dash ? input() : [0, 0];
     if (hero.dash) { const k = hero.dash; k.t += dt; const f = Math.min(1, k.t / GM_DASH.time), e = f < .5 ? 2 * f * f : 1 - Math.pow(-2 * f + 2, 2) / 2; hero.x = k.sx + (k.tx - k.sx) * e; hero.y = k.sy + (k.ty - k.sy) * e; k.air = Math.sin(Math.PI * f) * 78; hero.moving = false; }
     else if (ix || iy) {
       const sp = GM_HERO.baseSpeed * (hero.speed || 1), p = moveCircle(grid, hero.x, hero.y, ix * sp * dt, iy * sp * dt, GM_HERO.radius);
@@ -4505,8 +4506,9 @@ const FBase = (() => {
     },
   });
   // escuta um caminho em tempo real (SSE do Realtime Database); se o aparelho/navegador não conseguir, cai para consulta a cada 1 s. cb recebe o valor atual do caminho (ou null)
-  function listen(path, cb) {
-    let dead = false, es = null, tree = null, poll = 0, fails = 0, lastJ;
+  function listen(path, cb, opts) {                                  // opts.poll: consulta paralela a cada X ms (garante a entrega mesmo se o SSE travar) · opts.stall/stallPoll: se o SSE ficar mudo por X ms, passa a consultar a cada stallPoll ms
+    opts = opts || {};
+    let dead = false, es = null, tree = null, poll = 0, fails = 0, lastJ, lastEv = performance.now();
     const emit = () => { try { cb(tree); } catch (e) { /* erro do ouvinte não derruba a conexão */ } };
     const setAt = (p, v) => {
       const parts = String(p).split('/').filter(Boolean);
@@ -4518,10 +4520,10 @@ const FBase = (() => {
       if (v === null || v === undefined) delete o[last]; else o[last] = v;
       if (!Object.keys(tree).length) tree = null;
     };
-    function startPoll() {
+    function startPoll(ms) {
       if (poll || dead) return;
-      const tick = async () => { if (dead) return; try { const v = await rest('GET', path), j = JSON.stringify(v); if (j !== lastJ) { lastJ = j; tree = v; emit(); } } catch (e) { /* tenta de novo */ } };
-      tick(); poll = setInterval(tick, 1000);
+      const tick = async () => { if (dead) return; try { const v = await rest('GET', path), j = JSON.stringify(v); if (j !== lastJ) { lastJ = j; if (j !== JSON.stringify(tree === undefined ? null : tree)) { tree = v; emit(); } } } catch (e) { /* tenta de novo */ } };
+      tick(); poll = setInterval(tick, ms || 1000);
     }
     async function open() {
       if (dead) return;
@@ -4529,14 +4531,16 @@ const FBase = (() => {
       if (dead) return;
       if (typeof EventSource === 'undefined') { startPoll(); return; }
       es = new EventSource(FB.db + '/' + path + '.json' + (t ? '?auth=' + encodeURIComponent(t) : ''));
-      es.addEventListener('put', (e) => { try { const m = JSON.parse(e.data); setAt(m.path, m.data); fails = 0; emit(); } catch (x) { /* mensagem ruim */ } });
-      es.addEventListener('patch', (e) => { try { const m = JSON.parse(e.data), base = m.path === '/' ? '' : m.path; for (const k in m.data) setAt(base + '/' + k, m.data[k]); fails = 0; emit(); } catch (x) { /* mensagem ruim */ } });
+      es.addEventListener('put', (e) => { lastEv = performance.now(); try { const m = JSON.parse(e.data); setAt(m.path, m.data); fails = 0; emit(); } catch (x) { /* mensagem ruim */ } });
+      es.addEventListener('patch', (e) => { lastEv = performance.now(); try { const m = JSON.parse(e.data), base = m.path === '/' ? '' : m.path; for (const k in m.data) setAt(base + '/' + k, m.data[k]); fails = 0; emit(); } catch (x) { /* mensagem ruim */ } });
       es.addEventListener('cancel', () => { try { es.close(); } catch (x) { /* ok */ } es = null; setTimeout(open, 1500); });
       es.addEventListener('auth_revoked', () => { try { es.close(); } catch (x) { /* ok */ } es = null; setTimeout(open, 400); });
       es.onerror = () => { fails++; if (fails > 4 && es) { try { es.close(); } catch (x) { /* ok */ } es = null; startPoll(); } };
     }
     open();
-    return () => { dead = true; if (es) { try { es.close(); } catch (x) { /* ok */ } } clearInterval(poll); };
+    if (opts.poll) startPoll(opts.poll);
+    const wd = opts.stall ? setInterval(() => { if (!poll && performance.now() - lastEv > opts.stall) startPoll(opts.stallPoll || 300); }, 1000) : 0;
+    return () => { dead = true; if (es) { try { es.close(); } catch (x) { /* ok */ } } clearInterval(poll); clearInterval(wd); };
   }
   return { async connect() { await token(); try { await rest('GET', 'ping'); } catch (e) { return null; } return { doc }; }, get uid() { return uid; }, listen,
     get: (p) => rest('GET', p), put: (p, v) => rest('PUT', p, v), patch: (p, v) => rest('PATCH', p, v), del: (p) => rest('DELETE', p, null) };
@@ -4611,9 +4615,11 @@ const Party = (() => {
   }
   function attach(id) {
     detach(); rid = id; for (const k in seenAt) delete seenAt[k]; for (const k in seenVal) delete seenVal[k];
-    unsub = FBase.listen('rooms/' + id, onRoom);
+    unsub = FBase.listen('rooms/' + id, onRoom, { poll: 1500 });
     hb = setInterval(beat, 8000);
   }
+  const toArr = (x) => Array.isArray(x) ? x.filter(Boolean) : (x && typeof x === 'object' ? Object.keys(x).sort((a, b) => a - b).map((k) => x[k]).filter(Boolean) : []);
+  const normMatch = (m) => m && m.id !== undefined ? { id: m.id, seats: toArr(m.seats).map((s) => ({ id: s.id, name: s.name, hero: s.hero, lvl: s.lvl })) } : null;   // o banco devolve listas como objetos às vezes
   function onRoom(v) {
     if (!rid) return;
     if (v === null) { detach(isOwnerWas() ? null : 'dissolved'); return; }
@@ -4623,8 +4629,9 @@ const Party = (() => {
     for (const id in (v.members || {})) { const sv = v.members[id].seen; if (seenVal[id] !== sv) { seenVal[id] = sv; seenAt[id] = now; } }
     if (!first && v.owner !== myId() && !(v.members && v.members[myId()])) { detach('kicked'); return; }
     if (v.owner === myId()) for (const id in (v.members || {})) if (id !== myId() && !alive(id)) FBase.del('rooms/' + rid + '/members/' + id).catch(() => {});   // o dono tira quem sumiu
-    if (v.state === 'loading' && v.match && v.match.id !== lastMatch && v.match.seats.some((s) => s.id === myId())) { lastMatch = v.match.id; onMatch(v.match); }
-    if (v.state === 'playing' && v.match && v.match.id !== lastPlay) { lastPlay = v.match.id; onPlay(v.match); }
+    const mt = normMatch(v.match);
+    if (v.state === 'loading' && mt && mt.id !== lastMatch && mt.seats.some((s) => s.id === myId())) { lastMatch = mt.id; onMatch(mt); }
+    if (v.state === 'playing' && mt && mt.id !== lastPlay) { lastPlay = mt.id; onPlay(mt); }
     onChange(room);
   }
   const isOwnerWas = () => rid === myId();
@@ -4675,7 +4682,7 @@ const Party = (() => {
   const putSnap = (obj) => { if (!rid || snapBusy) return; snapBusy = true; FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { snapBusy = false; }); };
   let inBusy = false, inQueued = null;
   const putIn = (obj) => { if (!rid) return; if (inBusy) { inQueued = obj; return; } inBusy = true; FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
-  const listenSnap = (cb) => FBase.listen('rsnap/' + rid, cb), listenIn = (cb) => FBase.listen('rin/' + rid, cb);
+  const listenSnap = (cb) => FBase.listen('rsnap/' + rid, cb, { stall: 2000, stallPoll: 250 }), listenIn = (cb) => FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 });
   return { members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
     get active() { return !!rid; }, get room() { return room; }, get id() { return rid; }, get me() { return members().find((m) => m.id === myId()) || null; },
     set onChange(f) { onChange = f; }, set onMatch(f) { onMatch = f; }, set onPlay(f) { onPlay = f; }, set onGone(f) { onGone = f; } };
@@ -4969,7 +4976,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v100</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v101</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -5324,9 +5331,12 @@ function openPop() {
 let netMatch = null;                                              // partida em rede em andamento: { match, role, seat, unsub }
 function netStop() { if (netMatch) { try { netMatch.unsub && netMatch.unsub(); } catch (e) { /* ok */ } netMatch = null; } }
 // net: null = partida normal (você + 2 bots); { match } = partida em rede (você + amigos da sala; bots só completam até 3)
-async function startMatch(net) {
+async function startMatch(net) {                                    // protege contra travar: qualquer erro volta ao lobby e libera o botão
   if (busy) return;
   busy = true;
+  try { await startMatch0(net); } catch (e) { try { console.warn('partida:', e && e.message); } catch (x) { /* ok */ } toast('Não foi possível entrar na partida. Tente de novo.'); try { renderLobby(); show('lobby'); } catch (x) { /* ok */ } } finally { busy = false; }
+}
+async function startMatch0(net) {
   netStop();
   show('match');
   const N = GAME.matchPlayers, setPct = (p) => { $('#match-fill').style.width = p + '%'; $('#match-pct').textContent = Math.round(p) + '%'; };
@@ -5345,10 +5355,10 @@ async function startMatch(net) {
   Party.markLoaded(m.id);
   const wait = $('#match-n'); wait.textContent = String(Math.min(N, Math.max(humans, 1)));
   let go = false;
-  if (owner) { await Party.waitLoaded(m, 15000); await Party.play(m); go = true; }
+  if (owner) { await Party.waitLoaded(m, 25000); await Party.play(m); go = true; }
   else {                                                              // amigo: espera o dono liberar (a sala muda para "playing")
     const t0 = performance.now();
-    while (performance.now() - t0 < 25000) { const r = Party.room; if (r && r.state === 'playing' && r.match && r.match.id === m.id) { go = true; break; } if (!Party.active) break; await sleep(150); }
+    while (performance.now() - t0 < 40000) { const r = Party.room; if (r && r.state === 'playing' && r.match && r.match.id === m.id) { go = true; break; } if (!Party.active) break; await sleep(150); }
   }
   busy = false;
   if (!go || mine < 0) { toast('A partida em grupo não começou. Tente de novo.'); renderLobby(); show('lobby'); return; }
