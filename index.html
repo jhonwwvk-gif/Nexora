@@ -2135,7 +2135,7 @@ function createGame(host, A, hooks) {
   const spec = { watch: null }; let ended = null, endT = 0, endSent = false, specIx = 0; const rfx = [];   // fim da partida ('win'|'lose'); efeitos de renascer
   let wolfShot = null, wasLow = false, cool = 0, flameAcc = 0, flameTick = 0, robot = null, wolf = null;
   // ---- partida em rede: 'solo' (como antes), 'host' (o dono: roda tudo e manda fotos do estado) ou 'client' (amigo: manda controles e só desenha)
-  const NET = { role: 'solo', seats: null, seat: 0, sendSnap: null, sendInput: null, snap: null, snapAt: 0, got: 0, applied: 0, sT: 0, iT: 0, n: 0, aN: 0, aD: [1, 0], sN: 0, sD: [1, 0], sDist: null, tileDone: 0, seenFx: new Set(), lost: false, nid: 0 };
+  const NET = { role: 'solo', seats: null, seat: 0, sendSnap: null, sendInput: null, snap: null, snapAt: 0, got: 0, applied: 0, sT: 0, iT: 0, n: 0, aN: 0, aD: [1, 0], sN: 0, sD: [1, 0], sDist: null, tileDone: 0, seenFx: new Set(), lost: false, nid: 0, curTs: undefined, lastTs: 0, arr: [] };
   const tileEv = [];                                                // quebras de ladrilho (o dono anota; os amigos repetem)
   const el = { ring: host.querySelector('#joy-ring'), knob: host.querySelector('#joy-knob'), atk: host.querySelector('#atk-btn'), atkKnob: host.querySelector('#atk-knob'), sup: host.querySelector('#sup-btn'), spec: host.querySelector('#g-spec'), supKnob: host.querySelector('#sup-knob') };
 
@@ -3470,6 +3470,12 @@ function createGame(host, A, hooks) {
   function syncObj(o, s, own) {                                      // copia a foto para o objeto vivo; posição vira "alvo" e é suavizada a cada quadro
     for (const k in s) { if (k === 'x' || k === 'y') continue; if (own && (k === 'face' || k === 'side' || k === 'moving' || k === 'walk' || k === 'yaw' || k === 'look' || k === 'lookHold' || k === 'bush')) continue; o[k] = s[k]; }
     if (!own && s.dash === undefined) o.dash = null;
+    const ts = NET.curTs;
+    if (ts !== undefined && ts > (o.sTs === undefined ? -1 : o.sTs)) {
+      let vx = 0, vy = 0;
+      if (o.sTs !== undefined && o.tx !== undefined) { const d = (ts - o.sTs) / 1000; if (d > 0.04 && d < 1.2) { vx = (s.x - o.tx) / d; vy = (s.y - o.ty) / d; const m = Math.hypot(vx, vy); if (m > 400) { vx *= 400 / m; vy *= 400 / m; } if (m < 6) { vx = 0; vy = 0; } } }
+      o.vx = vx; o.vy = vy; o.sTs = ts; o.sAt = performance.now();
+    }
     o.tx = s.x; o.ty = s.y;
   }
   function applyTile(e) {
@@ -3547,7 +3553,12 @@ function createGame(host, A, hooks) {
     if (robot.flash > 0) robot.flash -= dt;
     if (shakeT > 0) shakeT -= dt;
   }
-  function glide(o, dt, rate) { if (o.tx === undefined) return; const k = Math.min(1, dt * rate); o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
+  function glide(o, dt, rate) {                                      // suaviza até o alvo; entre uma foto e outra continua na velocidade que o objeto vinha (movimento contínuo, sem andar aos soquinhos)
+    if (o.tx === undefined) return;
+    const k = Math.min(1, dt * rate); let px = o.tx, py = o.ty;
+    if (o.vx || o.vy) { const age = Math.min(0.28, (performance.now() - (o.sAt || 0)) / 1000); px += o.vx * age; py += o.vy * age; }
+    o.x += (px - o.x) * k; o.y += (py - o.y) * k;
+  }
   // O Realtime Database manda a foto aos pedaços: listas viram objetos com chaves 0,1,2, listas vazias somem e itens removidos deixam buracos. Aqui a foto volta ao formato que o jogo espera.
   const NET_LISTS = ['m', 'bw', 'bu', 'bb', 'eb', 'fl', 'wv', 'bl', 'ms', 'bo', 'cl', 'mk', 'bf', 'pp', 'rf', 'or', 'bs', 'df', 'bx', 'te'];
   function fixNet(v) {
@@ -3559,8 +3570,10 @@ function createGame(host, A, hooks) {
     return r;
   }
   function fixSnapTop(S) { const r = fixNet(S); for (const k of NET_LISTS) if (!Array.isArray(r[k])) r[k] = []; if (!Array.isArray(r.u)) r.u = []; return r; }
+  const NXS = window.__NXS = window.__NXS || {};                      // contadores para o diagnóstico de rede
   function clientUpdate(dt) {
-    if (NET.snap && NET.got !== NET.applied) { NET.applied = NET.got; try { applySnap(fixSnapTop(NET.snap)); } catch (e) { if (!NET.err) { NET.err = 1; try { console.warn('foto da partida ignorada:', e && e.message); } catch (x) { /* ok */ } } } }
+    NXS.got = NET.got; NXS.age = performance.now() - NET.snapAt;
+    if (NET.snap && NET.got !== NET.applied) { NET.applied = NET.got; try { const F = fixSnapTop(NET.snap); if (!(F.ts < NET.lastTs)) { if (F.ts > (NET.lastTs || 0)) { NET.arr.push(performance.now()); if (NET.arr.length > 60) NET.arr.shift(); } NET.lastTs = F.ts; NET.curTs = F.ts; applySnap(F); } } catch (e) { if (!NET.err) { NET.err = 1; try { console.warn('foto da partida ignorada:', e && e.message); } catch (x) { /* ok */ } } } }
     if (ended) { endT -= dt; if (endT <= 0 && !endSent) { endSent = true; hooks && hooks.onEnd && hooks.onEnd(ended === 'win'); } }
     else if (!NET.lost && performance.now() - NET.snapAt > (NET.got ? 8000 : 15000)) { NET.lost = true; hooks && hooks.onNetLost && hooks.onNetLost(); }
     cool -= dt;
@@ -3611,6 +3624,7 @@ function createGame(host, A, hooks) {
     fAcc += dt; if (++fN >= 90) { if (fAcc / fN > 0.026 && qCap > 1) qCap = 1; fAcc = 0; fN = 0; }   // média de 90 quadros acima de 26 ms: reduz a resolução
     if (NET.role === 'client') clientUpdate(dt); else update(dt);
     draw();
+    NXS.role = NET.role; NXS.t = performance.now(); NXS.f = (NXS.f || 0) + 1;
     if (NET.role === 'host' && NET.sendSnap) { NET.sT += dt; if (NET.sT >= 0.1) { NET.sT = 0; try { NET.sendSnap(packState()); } catch (e) { /* ok */ } } }
     raf = requestAnimationFrame(frame);
   }
@@ -3618,7 +3632,7 @@ function createGame(host, A, hooks) {
   return {
     start(heroId, speed, level, net) {
       NET.role = net ? net.role : 'solo'; NET.seats = net ? net.seats : null; NET.seat = net && net.seat || 0; NET.sendSnap = net && net.sendSnap || null; NET.sendInput = net && net.sendInput || null;
-      NET.snap = null; NET.got = 0; NET.applied = 0; NET.tileDone = 0; NET.n = 0; NET.aN = 0; NET.sN = 0; NET.iT = 0; NET.sT = 0; NET.lost = false; NET.snapAt = performance.now(); NET.seenFx.clear(); tileEv.length = 0; rayCache.clear(); cracks.length = 0;
+      NET.snap = null; NET.got = 0; NET.applied = 0; NET.lastTs = 0; NET.curTs = undefined; NET.arr.length = 0; NET.tileDone = 0; NET.n = 0; NET.aN = 0; NET.sN = 0; NET.iT = 0; NET.sT = 0; NET.lost = false; NET.snapAt = performance.now(); NET.seenFx.clear(); tileEv.length = 0; rayCache.clear(); cracks.length = 0;
       rdust.length = 0; stepIdx = -1;
       ar = createArena(); grid = ar.grid; debris.length = 0; orbs.length = 0; bursts.length = 0;
       if (!sprites.power) sprites.power = load(A['power-atlas']);
@@ -3638,6 +3652,7 @@ function createGame(host, A, hooks) {
       running = true; last = performance.now(); raf = requestAnimationFrame(frame);
     },
     netIn(id, inp) { const b = bots.find((x) => x.rid === id); if (!b || !inp || !(inp.n > b.rn)) return; b.rn = inp.n; b.rin = inp; b.rt = performance.now(); },   // controles de um amigo (só o dono usa)
+    netStats() { const now = performance.now(), r = NET.arr.filter((t) => now - t < 2000).length / 2; return { role: NET.role, rate: r, gap: NET.arr.length ? Math.round(now - NET.arr[NET.arr.length - 1]) : -1 }; },
     netSnap(S) { if (NET.role === 'client' && S && S.u) { NET.snap = S; NET.got++; } },                                                                         // foto do estado (só o amigo usa)
     get net() { return NET; }, get ended() { return ended; },
     _dbg() { return { NET, hero, ar, debris, robot, bullets, minis, ebul, rm, bots, bwolves, missiles, get intro() { return intro; }, skipIntro, spawnBot }; },   // só para testes
@@ -4509,7 +4524,8 @@ const FBase = (() => {
   function listen(path, cb, opts) {                                  // opts.poll: consulta paralela a cada X ms (garante a entrega mesmo se o SSE travar) · opts.stall/stallPoll: se o SSE ficar mudo por X ms, passa a consultar a cada stallPoll ms
     opts = opts || {};
     let dead = false, es = null, tree = null, poll = 0, fails = 0, lastJ, lastEv = performance.now();
-    const emit = () => { try { cb(tree); } catch (e) { /* erro do ouvinte não derruba a conexão */ } };
+    let ct = 0;                                                      // opts.coalesce: junta os pedaços de uma mesma foto (o banco manda cada campo em um evento) e entrega a foto inteira de uma vez
+    const emit = () => { if (opts.coalesce) { if (!ct) ct = setTimeout(() => { ct = 0; try { cb(tree); } catch (e) { /* ok */ } }, opts.coalesce); return; } try { cb(tree); } catch (e) { /* erro do ouvinte não derruba a conexão */ } };
     const setAt = (p, v) => {
       const parts = String(p).split('/').filter(Boolean);
       if (!parts.length) { tree = v === undefined ? null : v; return; }
@@ -4540,7 +4556,7 @@ const FBase = (() => {
     open();
     if (opts.poll) startPoll(opts.poll);
     const wd = opts.stall ? setInterval(() => { if (!poll && performance.now() - lastEv > opts.stall) startPoll(opts.stallPoll || 300); }, 1000) : 0;
-    return () => { dead = true; if (es) { try { es.close(); } catch (x) { /* ok */ } } clearInterval(poll); clearInterval(wd); };
+    return () => { dead = true; clearTimeout(ct); if (es) { try { es.close(); } catch (x) { /* ok */ } } clearInterval(poll); clearInterval(wd); };
   }
   return { async connect() { await token(); try { await rest('GET', 'ping'); } catch (e) { return null; } return { doc }; }, get uid() { return uid; }, listen,
     get: (p) => rest('GET', p), put: (p, v) => rest('PUT', p, v), patch: (p, v) => rest('PATCH', p, v), del: (p) => rest('DELETE', p, null) };
@@ -4678,12 +4694,14 @@ const Party = (() => {
   }
   const play = (match) => { lastPlay = match.id; return FBase.patch('rooms/' + rid, { state: 'playing' }).catch(() => {}); };
   const backToLobby = () => { if (rid && isOwner()) { FBase.patch('rooms/' + rid, { state: 'lobby' }).catch(() => {}); FBase.del('rsnap/' + rid).catch(() => {}); FBase.del('rin/' + rid).catch(() => {}); } if (rid) { FBase.patch('rooms/' + rid + '/members/' + myId(), { ready: false, loaded: null }).catch(() => {}); } };
-  let snapBusy = false;
-  const putSnap = (obj) => { if (!rid || snapBusy) return; snapBusy = true; FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { snapBusy = false; }); };
+  let snapN = 0; const sentArr = [];                               // até 2 envios ao mesmo tempo (a internet do celular demora; o cliente ignora fotos mais velhas)
+  const NXR = window.__NXR = window.__NXR || {};                      // tempos reais de envio, para o diagnóstico de rede (Configurações)
+  const putSnap = (obj) => { if (!rid || snapN >= 2) return; snapN++; const t0 = performance.now(); FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { NXR.snap = Math.round(performance.now() - t0); snapN--; sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); }); };
+  const sentRate = () => { const now = performance.now(); return sentArr.filter((t) => now - t < 2000).length / 2; };
   let inBusy = false, inQueued = null;
-  const putIn = (obj) => { if (!rid) return; if (inBusy) { inQueued = obj; return; } inBusy = true; FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
-  const listenSnap = (cb) => FBase.listen('rsnap/' + rid, cb, { stall: 2000, stallPoll: 250 }), listenIn = (cb) => FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 });
-  return { members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
+  const putIn = (obj) => { if (!rid) return; if (inBusy) { inQueued = obj; return; } inBusy = true; const t0 = performance.now(); FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { NXR.inp = Math.round(performance.now() - t0); inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
+  const listenSnap = (cb) => FBase.listen('rsnap/' + rid, cb, { stall: 2000, stallPoll: 250, coalesce: 25 }), listenIn = (cb) => FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 });
+  return { sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
     get active() { return !!rid; }, get room() { return room; }, get id() { return rid; }, get me() { return members().find((m) => m.id === myId()) || null; },
     set onChange(f) { onChange = f; }, set onMatch(f) { onMatch = f; }, set onPlay(f) { onPlay = f; }, set onGone(f) { onGone = f; } };
 })();
@@ -4753,6 +4771,20 @@ let actors = null; // heróis 2D animados e lobo (actors.js)
 let currentScreen = null;
 let focusHero = store.get().selectedHero;
 let busy = false;
+// Diagnóstico de rede: texto pequeno no canto da partida (só aparece se ligado em Configurações)
+let nd = null, ndPrev = null;
+function netDbgTick() {
+  let on = false; try { on = localStorage.getItem('nx_netdbg') === '1'; } catch (e) { /* ok */ }
+  const S = window.__NXS || {}, R = window.__NXR || {}, now = performance.now();
+  const live = on && S.role && S.role !== 'solo' && S.t && now - S.t < 1500;
+  if (!live) { if (nd) nd.style.display = 'none'; ndPrev = null; return; }
+  if (!nd) { nd = document.createElement('div'); nd.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:9999;padding:3px 6px;border-radius:6px;background:rgba(0,0,0,.65);color:#9f9;font:11px/1.3 monospace;pointer-events:none;white-space:pre'; document.body.appendChild(nd); }
+  nd.style.display = 'block';
+  const dt = ndPrev ? (now - ndPrev.t) / 1000 : 0, fps = ndPrev && dt ? Math.round(((S.f || 0) - ndPrev.f) / dt) : 0, sp = ndPrev && dt ? (((S.got || 0) - ndPrev.got) / dt).toFixed(1) : '0';
+  nd.textContent = S.role === 'client' ? `AMIGO  fps ${fps}  fotos/s ${sp}  idade ${Math.round(S.age || 0)}ms  envio-controle ${R.inp || '-'}ms` : `DONO  fps ${fps}  envio-foto ${R.snap || '-'}ms`;
+  ndPrev = { t: now, f: S.f || 0, got: S.got || 0 };
+}
+setInterval(netDbgTick, 1000);
 
 function toast(text) {
   const t = document.createElement('div');
@@ -4976,7 +5008,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v101</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v102</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -4987,6 +5019,7 @@ function openSettings() {
     <p style="margin-top:14px"><b>Ver tela de ganhar herói (TESTE)</b></p>
     <div style="display:flex;gap:8px;margin-top:6px"><button class="pill-btn green d prev-hero" data-h="hugi" style="flex:1;font-size:24px;padding:8px 4px">HUGI</button><button class="pill-btn green d prev-hero" data-h="drak" style="flex:1;font-size:24px;padding:8px 4px">DRAK</button><button class="pill-btn green d prev-hero" data-h="jubi" style="flex:1;font-size:24px;padding:8px 4px">JUBI</button></div>
     <p class="hint">Mostra a tela completa de herói novo (giro, brilho e animação). Não gasta Orbe nem muda o progresso.</p>
+    <button id="net-dbg" class="pill-btn d" style="width:100%;margin-top:10px;font-size:24px;padding:8px 6px">DIAGNÓSTICO DE REDE (TESTE)</button>
     <button id="reset-prog" class="pill-btn red d" style="width:100%;margin-top:10px;font-size:26px;padding:10px 6px">ZERAR TODO O PROGRESSO (TESTE)</button>
     <p class="hint">Volta o jogo ao começo: troféus, Coins, Impulso, Orbes (contagem e ciclo) e heróis. Só o volume e o nome ficam.</p>
     ${store.persistent ? '' : '<p class="hint" style="color:#ff9aa6">O navegador bloqueou o armazenamento local: o progresso não será salvo ao fechar a página.</p>'}
@@ -5006,6 +5039,9 @@ function openSettings() {
     await heroReveal(id);
     ov.className = ''; busy = false;
   }; });
+  { const nb = $('#net-dbg', w.el), on = () => { try { return localStorage.getItem('nx_netdbg') === '1'; } catch (e) { return false; } };
+    const lab = () => { nb.textContent = 'DIAGNÓSTICO DE REDE (TESTE): ' + (on() ? 'LIGADO' : 'DESLIGADO'); }; lab();
+    nb.onclick = () => { try { localStorage.setItem('nx_netdbg', on() ? '0' : '1'); } catch (e) { /* ok */ } lab(); sfx.tap(); netDbgTick(); }; }
   let armed = false; const rb = $('#reset-prog', w.el);
   rb.onclick = () => {
     if (!armed) { armed = true; rb.textContent = 'TOQUE DE NOVO PARA CONFIRMAR'; sfx.tap(); setTimeout(() => { armed = false; rb.textContent = 'ZERAR TODO O PROGRESSO (TESTE)'; }, 3500); return; }
@@ -5376,6 +5412,18 @@ function netOptions(n) {
   netMatch = { match: n.match, role: 'client', seat: n.seat, unsub };
   return { role: 'client', seats, seat: n.seat, sendInput: (o) => Party.putIn(o) };
 }
+
+const netDiag = (() => {                                            // medidor de rede discreto (TESTE): mostra quantas fotos por segundo o jogo está enviando/recebendo
+  let el = null;
+  setInterval(() => {
+    if (!netMatch || !game) { if (el) el.hidden = true; return; }
+    if (!el) { el = document.createElement('div'); el.style.cssText = 'position:fixed;left:8px;bottom:4px;font:600 11px monospace;color:#fff;opacity:.5;z-index:60;pointer-events:none;text-shadow:0 1px 2px #000'; document.body.appendChild(el); }
+    el.hidden = false;
+    if (netMatch.role === 'host') el.textContent = 'rede (teste): enviando ' + Party.sentRate().toFixed(1) + '/s';
+    else { const s = game.netStats(); el.textContent = 'rede (teste): recebendo ' + s.rate.toFixed(1) + '/s · última há ' + (s.gap < 0 ? '-' : s.gap + ' ms'); }
+  }, 500);
+  return true;
+})();
 
 function startGame(n) {
   if (!game) game = createGame($('#s-game'), A, { onEnd: onMatchEnd, onNetLost: onNetLost });
