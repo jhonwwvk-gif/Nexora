@@ -3614,7 +3614,7 @@ function createGame(host, A, hooks) {
     glide(robot, dt, 14); for (const m of minis) glide(m, dt, 14); if (wolf) glide(wolf, dt, 14); for (const w of bwolves) glide(w, dt, 14);
     advance(dt);
     NET.iT += dt;                                                    // controles: ~12 por segundo (e na hora quando atira)
-    if (NET.iT >= 1 / 12 && NET.sendInput) { NET.iT = 0; NET.sendInput({ n: ++NET.n, mx: Math.round(ix * 100) / 100, my: Math.round(iy * 100) / 100, aN: NET.aN, aD: NET.aD, sN: NET.sN, sD: NET.sD, sDist: NET.sDist }); }
+    if (NET.iT >= 1 / (NET.fast && NET.fast() ? 30 : 12) && NET.sendInput) { NET.iT = 0; NET.sendInput({ n: ++NET.n, mx: Math.round(ix * 100) / 100, my: Math.round(iy * 100) / 100, aN: NET.aN, aD: NET.aD, sN: NET.sN, sD: NET.sD, sDist: NET.sDist }); }
     hudCam(dt);
   }
 
@@ -3625,13 +3625,13 @@ function createGame(host, A, hooks) {
     if (NET.role === 'client') clientUpdate(dt); else update(dt);
     draw();
     NXS.role = NET.role; NXS.t = performance.now(); NXS.f = (NXS.f || 0) + 1;
-    if (NET.role === 'host' && NET.sendSnap) { NET.sT += dt; if (NET.sT >= 0.1) { NET.sT = 0; try { NET.sendSnap(packState()); } catch (e) { /* ok */ } } }
+    if (NET.role === 'host' && NET.sendSnap) { NET.sT += dt; if (NET.sT >= (NET.fast && NET.fast() ? 0.0625 : 0.1)) { NET.sT = 0; try { NET.sendSnap(packState()); } catch (e) { /* ok */ } } }
     raf = requestAnimationFrame(frame);
   }
 
   return {
     start(heroId, speed, level, net) {
-      NET.role = net ? net.role : 'solo'; NET.seats = net ? net.seats : null; NET.seat = net && net.seat || 0; NET.sendSnap = net && net.sendSnap || null; NET.sendInput = net && net.sendInput || null;
+      NET.role = net ? net.role : 'solo'; NET.seats = net ? net.seats : null; NET.seat = net && net.seat || 0; NET.sendSnap = net && net.sendSnap || null; NET.sendInput = net && net.sendInput || null; NET.fast = net && net.fast || null;
       NET.snap = null; NET.got = 0; NET.applied = 0; NET.lastTs = 0; NET.curTs = undefined; NET.arr.length = 0; NET.tileDone = 0; NET.n = 0; NET.aN = 0; NET.sN = 0; NET.iT = 0; NET.sT = 0; NET.lost = false; NET.snapAt = performance.now(); NET.seenFx.clear(); tileEv.length = 0; rayCache.clear(); cracks.length = 0;
       rdust.length = 0; stepIdx = -1;
       ar = createArena(); grid = ar.grid; debris.length = 0; orbs.length = 0; bursts.length = 0;
@@ -4694,14 +4694,52 @@ const Party = (() => {
   }
   const play = (match) => { lastPlay = match.id; return FBase.patch('rooms/' + rid, { state: 'playing' }).catch(() => {}); };
   const backToLobby = () => { if (rid && isOwner()) { FBase.patch('rooms/' + rid, { state: 'lobby' }).catch(() => {}); FBase.del('rsnap/' + rid).catch(() => {}); FBase.del('rin/' + rid).catch(() => {}); } if (rid) { FBase.patch('rooms/' + rid + '/members/' + myId(), { ready: false, loaded: null }).catch(() => {}); } };
+
+  // ── Ligação direta entre os celulares (WebRTC). O banco só serve para os dois se acharem; o jogo passa direto (bem mais rápido). Se falhar, segue pelo banco como antes.
+  const P2P = (() => {
+    const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+    let peers = {}, unsubs = [], expect = [], role = '', rx = null, ownerId = '', lastOffer = 0, on = false;
+    const ok = () => typeof RTCPeerConnection === 'function';
+    const gathered = (pc) => new Promise((res) => { if (pc.iceGatheringState === 'complete') return res(); const f = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', f); res(); } }; pc.addEventListener('icegatheringstatechange', f); setTimeout(res, 2500); });
+    function newPeer(id) { drop(id); const pc = new RTCPeerConnection(ICE); const p = { pc, dc: null, open: false, sdpSet: false }; peers[id] = p; pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') p.open = false; }; return p; }
+    function wire(p, id) { const dc = p.dc; dc.onopen = () => { p.open = true; }; dc.onclose = () => { p.open = false; }; dc.onmessage = (e) => { if (!rx) return; try { rx(id, JSON.parse(e.data)); } catch (x) { /* mensagem ruim */ } }; if (dc.readyState === 'open') p.open = true; }
+    function drop(id) { const p = peers[id]; if (!p) return; p.open = false; try { p.dc && p.dc.close(); } catch (e) { /* ok */ } try { p.pc.close(); } catch (e) { /* ok */ } delete peers[id]; }
+    function stop() { on = false; for (const id of Object.keys(peers)) drop(id); for (const u of unsubs) { try { u(); } catch (e) { /* ok */ } } unsubs = []; expect = []; role = ''; ownerId = ''; }
+    async function offerTo(id) {
+      const p = newPeer(id); p.dc = p.pc.createDataChannel('g', { ordered: false, maxRetransmits: 0 }); wire(p, id);
+      await p.pc.setLocalDescription(await p.pc.createOffer()); await gathered(p.pc);
+      const oid = Date.now(); await FBase.put('rtc/' + rid + '/' + myId() + '_' + id, { id: oid, type: 'offer', sdp: p.pc.localDescription.sdp });
+      unsubs.push(FBase.listen('rtc/' + rid + '/' + id + '_' + myId(), async (v) => { if (!on || !v || !v.sdp || v.id !== oid || p.sdpSet) return; p.sdpSet = true; try { await p.pc.setRemoteDescription({ type: 'answer', sdp: v.sdp }); } catch (e) { /* tenta pelo banco */ } }, { poll: 1000 }));
+    }
+    async function hostConnect(ids) {
+      if (!ok() || !rid) return; stop(); on = true; role = 'host'; expect = ids.slice();
+      try { await FBase.del('rtc/' + rid); } catch (e) { /* ok */ }
+      for (const id of ids) offerTo(id).catch(() => {});
+    }
+    function join(owner) {
+      if (!ok() || !rid) return; stop(); on = true; role = 'client'; ownerId = owner;
+      unsubs.push(FBase.listen('rtc/' + rid + '/' + owner + '_' + myId(), async (v) => {
+        if (!on || !v || !v.sdp || v.id === lastOffer) return; lastOffer = v.id;
+        const p = newPeer(owner); p.pc.ondatachannel = (e) => { p.dc = e.channel; wire(p, owner); };
+        try { await p.pc.setRemoteDescription({ type: 'offer', sdp: v.sdp }); await p.pc.setLocalDescription(await p.pc.createAnswer()); await gathered(p.pc); await FBase.put('rtc/' + rid + '/' + myId() + '_' + owner, { id: v.id, type: 'answer', sdp: p.pc.localDescription.sdp }); } catch (e) { /* tenta pelo banco */ }
+      }, { poll: 1000 }));
+    }
+    const isOpen = (id) => { const p = peers[id]; return !!(p && p.open && p.dc && p.dc.readyState === 'open'); };
+    function sendTo(id, str) { if (!isOpen(id)) return false; try { peers[id].dc.send(str); return true; } catch (e) { return false; } }
+    function sendAll(str) { if (!expect.length) return false; let all = true; for (const id of expect) { if (!isOpen(id)) { all = false; continue; } if (peers[id].dc.bufferedAmount > 262144) continue; try { peers[id].dc.send(str); } catch (e) { all = false; } } return all; }
+    const fast = () => role === 'host' ? (expect.length > 0 && expect.every(isOpen)) : role === 'client' ? isOpen(ownerId) : false;
+    return { hostConnect, join, stop, sendTo, sendAll, fast, onRx: (f) => { rx = f; }, get active() { return on; }, get ownerId() { return ownerId; } };
+  })();
   let snapN = 0; const sentArr = [];                               // até 2 envios ao mesmo tempo (a internet do celular demora; o cliente ignora fotos mais velhas)
   const NXR = window.__NXR = window.__NXR || {};                      // tempos reais de envio, para o diagnóstico de rede (Configurações)
-  const putSnap = (obj) => { if (!rid || snapN >= 2) return; snapN++; const t0 = performance.now(); FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { NXR.snap = Math.round(performance.now() - t0); snapN--; sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); }); };
+  const putSnap = (obj) => { if (!rid) return; if (P2P.active && P2P.fast() && P2P.sendAll(JSON.stringify(obj))) { sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); return; } if (snapN >= 2) return; snapN++; const t0 = performance.now(); FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { NXR.snap = Math.round(performance.now() - t0); snapN--; sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); }); };
   const sentRate = () => { const now = performance.now(); return sentArr.filter((t) => now - t < 2000).length / 2; };
   let inBusy = false, inQueued = null;
-  const putIn = (obj) => { if (!rid) return; if (inBusy) { inQueued = obj; return; } inBusy = true; const t0 = performance.now(); FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { NXR.inp = Math.round(performance.now() - t0); inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
-  const listenSnap = (cb) => FBase.listen('rsnap/' + rid, cb, { stall: 2000, stallPoll: 250, coalesce: 25 }), listenIn = (cb) => FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 });
-  return { sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
+  const putIn = (obj) => { if (!rid) return; if (P2P.active && P2P.sendTo(P2P.ownerId, JSON.stringify(obj))) return; if (inBusy) { inQueued = obj; return; } inBusy = true; const t0 = performance.now(); FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { NXR.inp = Math.round(performance.now() - t0); inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
+  // fotos e controles chegam direto (WebRTC) e também pelo banco (reserva); o que for mais velho que o último recebido é ignorado
+  const listenSnap = (cb) => { let lastTs = 0; P2P.onRx((id, S) => { if (S && S.u && S.ts > lastTs) { lastTs = S.ts; cb(S); } }); const un = FBase.listen('rsnap/' + rid, (t) => { if (t && t.ts !== undefined) { if (t.ts <= lastTs) return; lastTs = t.ts; } cb(t); }, { stall: 2000, stallPoll: 250, coalesce: 25 }); return () => { un(); P2P.onRx(null); }; };
+  const listenIn = (cb) => { P2P.onRx((id, I) => { if (I) cb({ [id]: I }); }); const un = FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 }); return () => { un(); P2P.onRx(null); }; };
+  return { p2pHost: P2P.hostConnect, p2pJoin: P2P.join, p2pStop: P2P.stop, p2pFast: P2P.fast, sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
     get active() { return !!rid; }, get room() { return room; }, get id() { return rid; }, get me() { return members().find((m) => m.id === myId()) || null; },
     set onChange(f) { onChange = f; }, set onMatch(f) { onMatch = f; }, set onPlay(f) { onPlay = f; }, set onGone(f) { onGone = f; } };
 })();
@@ -5008,7 +5046,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v102</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v103</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -5365,7 +5403,7 @@ function openPop() {
 
 // ---------------------------------------------------------------- partida (carregamento + ferramenta de teste)
 let netMatch = null;                                              // partida em rede em andamento: { match, role, seat, unsub }
-function netStop() { if (netMatch) { try { netMatch.unsub && netMatch.unsub(); } catch (e) { /* ok */ } netMatch = null; } }
+function netStop() { try { Party.p2pStop(); } catch (e) { /* ok */ } if (netMatch) { try { netMatch.unsub && netMatch.unsub(); } catch (e) { /* ok */ } netMatch = null; } }
 // net: null = partida normal (você + 2 bots); { match } = partida em rede (você + amigos da sala; bots só completam até 3)
 async function startMatch(net) {                                    // protege contra travar: qualquer erro volta ao lobby e libera o botão
   if (busy) return;
@@ -5389,6 +5427,7 @@ async function startMatch0(net) {
   // em rede: todos avisam que carregaram; o dono espera os amigos e libera a partida
   const m = net.match, mine = m.seats.findIndex((x) => x.id === Online.id), owner = mine === 0;
   Party.markLoaded(m.id);
+  try { if (owner) Party.p2pHost(m.seats.map((s) => s.id).filter((id) => id !== Online.id)); else Party.p2pJoin(m.seats[0].id); } catch (e) { /* sem ligação direta: segue pelo banco */ }
   const wait = $('#match-n'); wait.textContent = String(Math.min(N, Math.max(humans, 1)));
   let go = false;
   if (owner) { await Party.waitLoaded(m, 25000); await Party.play(m); go = true; }
@@ -5406,11 +5445,11 @@ function netOptions(n) {
   if (n.seat === 0) {                                                 // dono: roda a partida, manda fotos, recebe controles
     const unsub = Party.listenIn((tree) => { if (!tree || !game) return; for (const id in tree) game.netIn(id, tree[id]); });
     netMatch = { match: n.match, role: 'host', seat: 0, unsub };
-    return { role: 'host', seats, seat: 0, sendSnap: (o) => Party.putSnap(o) };
+    return { role: 'host', seats, seat: 0, sendSnap: (o) => Party.putSnap(o), fast: () => Party.p2pFast() };
   }
   const unsub = Party.listenSnap((tree) => { if (tree && game) game.netSnap(tree); });   // amigo: manda controles, recebe fotos
   netMatch = { match: n.match, role: 'client', seat: n.seat, unsub };
-  return { role: 'client', seats, seat: n.seat, sendInput: (o) => Party.putIn(o) };
+  return { role: 'client', seats, seat: n.seat, sendInput: (o) => Party.putIn(o), fast: () => Party.p2pFast() };
 }
 
 const netDiag = (() => {                                            // medidor de rede discreto (TESTE): mostra quantas fotos por segundo o jogo está enviando/recebendo
