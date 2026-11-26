@@ -1477,6 +1477,10 @@ function moveCircle(g, x, y, dx, dy, r) {
 /** Ponto em pixels do mundo está em célula sólida? (tiros) */
 function solidAt(g, x, y) { return isSolidCell(g, Math.floor(x / g.cell), Math.floor(y / g.cell)); }
 
+// o herói fica escondido assim que PARTE do corpo (os pés, em largura de corpo) toca o arbusto — não precisa entrar inteiro
+function heroInBush(g, x, y) {
+  return inBush(g, x, y - 3) || inBush(g, x - 8, y - 3) || inBush(g, x + 8, y - 3) || inBush(g, x, y - 7);
+}
 function inBush(g, x, y) {
   const cx = Math.floor(x / g.cell), cy = Math.floor(y / g.cell);
   if (cx < 0 || cy < 0 || cx >= g.cols || cy >= g.rows) return false;
@@ -1514,16 +1518,37 @@ function arFill(grid, T, c, r) {
     grid.solid[k] = grid.base[k] || (AR_SOLID.includes(ch) && arShape(ch, i * AR_CELL + AR_CELL / 2, j * AR_CELL + AR_CELL / 2)) ? 1 : 0;
   }
 }
+// fração de células sólidas (ou fora do mapa) dentro de um retângulo do mundo
+function arSolidFrac(g, x0, y0, x1, y1) {
+  let n = 0, s = 0;
+  for (let j = Math.floor(y0 / g.cell); j <= Math.floor(y1 / g.cell); j++) for (let i = Math.floor(x0 / g.cell); i <= Math.floor(x1 / g.cell); i++) { n++; if (i < 0 || j < 0 || i >= g.cols || j >= g.rows || g.solid[j * g.cols + i]) s++; }
+  return n ? s / n : 1;
+}
+function arFitGrass(g, props) {
+  const D = MAP_DATA, W = g.w, done = [];
+  const ok = (p, x, y) => { const a = D.atlas[p.s]; return arSolidFrac(g, x - a[2] / 2 - 3, y - a[3] * 0.72 - 3, x + a[2] / 2 + 3, y + 3) === 0 && arSolidFrac(g, x - a[2] / 2, y - a[3], x + a[2] / 2, y) < 0.03; };
+  const list = props.filter((p) => p.k === 'grass').sort((a, b) => a.x - b.x);              // esquerdos primeiro: o do lado direito é o espelho
+  for (const p of list) {
+    const m = done.find((q) => Math.abs(q.ox + p.x - W) < 2 && Math.abs(q.oy - p.y) < 2);
+    if (m) { p.x = W - m.x; p.y = m.y; done.push({ p, ox: p.x, oy: p.y, x: p.x, y: p.y }); continue; }
+    const ox = p.x, oy = p.y; let best = null;
+    if (ok(p, ox, oy)) best = [ox, oy];
+    else { for (let r = 5; r <= 120 && !best; r += 5) { let bd = 1e9; for (let dy = -r; dy <= r; dy += 5) for (let dx = -r; dx <= r; dx += 5) { if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue; const d = Math.hypot(dx, dy * 1.3) + (dy > 0 ? 6 : 0); if (d < bd && ok(p, ox + dx, oy + dy)) { bd = d; best = [ox + dx, oy + dy]; } } } }
+    if (best) { p.x = best[0]; p.y = best[1]; }
+    done.push({ p, ox, oy, x: p.x, y: p.y });
+  }
+}
 function arenaGrid(T, props) {
   const D = MAP_DATA, cols = AR_COLS * AR_SUB, rows = AR_ROWS * AR_SUB;
   const grid = { w: AR_COLS * AR_T, h: AR_ROWS * AR_T, cell: AR_CELL, cols, rows, solid: new Uint8Array(cols * rows), bush: new Uint8Array(cols * rows), base: new Uint8Array(cols * rows) };
   const bin = atob(D.base);                                         // moldura + paredes/blocos fixos (1 bit por célula)
   for (let k = 0; k < cols * rows; k++) grid.base[k] = (bin.charCodeAt(k >> 3) >> (7 - (k & 7))) & 1;
+  for (let r = 0; r < AR_ROWS; r++) for (let c = 0; c < AR_COLS; c++) arFill(grid, T, c, r);
+  arFitGrass(grid, props);                                           // arbusto nunca em cima de muro/moldura: sai do lugar até achar chão livre
   for (const p of props) if (p.k === 'grass') {                    // arbustos: esconderijo sem colisão
     const a = D.atlas[p.s], x0 = p.x - a[2] / 2 + 4, x1 = p.x + a[2] / 2 - 4, y0 = p.y - a[3] * 0.72, y1 = p.y - 2;
     for (let j = Math.floor(y0 / AR_CELL); j <= Math.floor(y1 / AR_CELL); j++) for (let i = Math.floor(x0 / AR_CELL); i <= Math.floor(x1 / AR_CELL); i++) if (i >= 0 && j >= 0 && i < cols && j < rows) grid.bush[j * cols + i] = 1;
   }
-  for (let r = 0; r < AR_ROWS; r++) for (let c = 0; c < AR_COLS; c++) arFill(grid, T, c, r);
   return grid;
 }
 
@@ -1580,25 +1605,25 @@ function arenaDraw(ctx, ar, cam, vw, vh, t, drawHero) {
     const a = D.atlas[p.s], sway = Math.sin(t * 1.7 + p.x * 0.03 + p.y * 0.02) * 0.035;
     cx.save(); cx.translate(p.x - cam.x, p.y - cam.y); cx.transform(1, 0, sway, 1, 0, 0); cx.drawImage(pr, a[0], a[1], a[2], a[3], -a[2] / 2, -a[3], a[2], a[3]); cx.restore();
   };
-  const front = [];
-  for (const p of ar.grass) { const a = D.atlas[p.s]; if (p.y < y0 || p.y - a[3] > y1 || p.x < x0 || p.x > x1) continue; if (p.y <= heroY) items.push({ y: p.y, draw: () => grassDraw(ctx, p) }); else front.push(p); }
+  // arbusto à frente do herói (esconde ele): desenhado na MESMA ordem das paredes; fica 70% transparente só em volta do herói
+  const hole = drawHero && drawHero.hole;
+  const frontDraw = (p) => {
+    if (!hole) { grassDraw(ctx, p); return; }
+    const a = D.atlas[p.s], w = a[2] + 16, h = a[3] + 8, sx = p.x - cam.x, sy = p.y - cam.y, hx = hole.x - cam.x, hy = hole.y - cam.y - 22, R = 34;
+    if (hx < sx - w / 2 - R || hx > sx + w / 2 + R || hy < sy - h - R || hy > sy + R) { grassDraw(ctx, p); return; }
+    const k = ctx.getTransform().a || 1, bx = sx - w / 2, by = sy - h, cw = Math.ceil(w * k), ch = Math.ceil(h * k);
+    let tc = arenaDraw.tmp; if (!tc) tc = arenaDraw.tmp = document.createElement('canvas');
+    if (tc.width < cw || tc.height < ch) { tc.width = Math.max(tc.width, cw); tc.height = Math.max(tc.height, ch); }
+    const tx = tc.getContext('2d'); tx.setTransform(1, 0, 0, 1, 0, 0); tx.clearRect(0, 0, tc.width, tc.height); tx.setTransform(k, 0, 0, k, -bx * k, -by * k);
+    grassDraw(tx, p);
+    const g = tx.createRadialGradient(hx, hy, 6, hx, hy, R); g.addColorStop(0, 'rgba(0,0,0,.7)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    tx.save(); tx.globalCompositeOperation = 'destination-out'; tx.fillStyle = g; tx.fillRect(hx - R, hy - R, R * 2, R * 2); tx.restore();
+    ctx.drawImage(tc, 0, 0, cw, ch, bx, by, cw / k, ch / k);
+  };
+  for (const p of ar.grass) { const a = D.atlas[p.s]; if (p.y < y0 || p.y - a[3] > y1 || p.x < x0 || p.x > x1) continue; if (p.y <= heroY || !drawHero || !drawHero.hole) items.push({ y: p.y, draw: () => grassDraw(ctx, p) }); else items.push({ y: p.y, draw: () => frontDraw(p) }); }
   if (drawHero) { items.push({ y: drawHero.y, draw: drawHero.draw }); for (const e of drawHero.extra || []) items.push({ y: e.y, draw: e.draw }); }
   items.sort((a, b) => a.y - b.y);
   for (const it of items) it.draw();
-  // arbustos à frente do herói (escondem ele): 70% transparentes só em volta do herói
-  const hole = drawHero && drawHero.hole;
-  let wx = ctx;
-  if (hole) {
-    if (!arenaDraw.off || arenaDraw.off.width !== ctx.canvas.width || arenaDraw.off.height !== ctx.canvas.height) { arenaDraw.off = document.createElement('canvas'); arenaDraw.off.width = ctx.canvas.width; arenaDraw.off.height = ctx.canvas.height; }
-    wx = arenaDraw.off.getContext('2d'); wx.setTransform(1, 0, 0, 1, 0, 0); wx.clearRect(0, 0, arenaDraw.off.width, arenaDraw.off.height); wx.setTransform(ctx.getTransform());
-  }
-  for (const p of front) grassDraw(wx, p);
-  if (hole) {
-    const hx = hole.x - cam.x, hy = hole.y - cam.y - 22, R = 34, g = wx.createRadialGradient(hx, hy, 6, hx, hy, R);
-    g.addColorStop(0, 'rgba(0,0,0,.7)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    wx.save(); wx.globalCompositeOperation = 'destination-out'; wx.fillStyle = g; wx.fillRect(hx - R, hy - R, R * 2, R * 2); wx.restore();
-    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(arenaDraw.off, 0, 0); ctx.restore();
-  }
 }
 // ---- lagarto.js (GERADO por tools/build_lagarto.py a partir de lagarto-cowboy.html — Hugi novo, desenhado em código)
 // Para voltar ao Hugi anterior: em game.js, GM_HUGI_NOVO = false (o Hugi de imagens continua todo lá).
@@ -3034,7 +3059,7 @@ function createGame(host, A, hooks) {
       hero.yaw = (hero.yaw + Math.max(-st, Math.min(st, df)) + 360) % 360;
     }
     if (alive) { hero.sinceHit += dt; if (hero.sinceHit >= GM_HEAL.delay && hero.hp < hero.maxHp) hero.hp = Math.min(hero.maxHp, hero.hp + hero.maxHp * GM_HEAL.rate * dt); }   // recupera vida depois de um tempo sem apanhar
-    hero.bush = inBush(grid, hero.x, hero.y - GM_HERO.height * 0.5) && !(hero.reveal > 0);
+    hero.bush = heroInBush(grid, hero.x, hero.y) && !(hero.reveal > 0);   // basta uma parte do corpo tocar o arbusto
     updateRobot(dt); updateMinis(dt); updateBots(dt); updatePower(dt);
     cool -= dt; if (hero.reveal > 0) hero.reveal -= dt;
     for (let i = bullets.length - 1; i >= 0; i--) {                    // voa reto; some ao bater em parede/objeto ou no inimigo
@@ -3597,7 +3622,7 @@ function createGame(host, A, hooks) {
     { const dx = hero.x - robot.x, dy = hero.y - robot.y, dd = Math.hypot(dx, dy), mn = robot.r + GM_HERO.radius; if (dd < mn && dd > 0) { hero.x = robot.x + dx / dd * mn; hero.y = robot.y + dy / dd * mn; } }
     if (hero.ammo < GM_BARS.max) hero.ammo = Math.min(GM_BARS.max, hero.ammo + dt / reloadOf(hero.id));
     if (hero.reveal > 0) hero.reveal -= dt;
-    hero.bush = inBush(grid, hero.x, hero.y - GM_HERO.height * 0.5) && !(hero.reveal > 0);
+    hero.bush = heroInBush(grid, hero.x, hero.y) && !(hero.reveal > 0);   // basta uma parte do corpo tocar o arbusto
     {                                                                  // para onde o corpo olha (igual ao dono)
       let lx = null, ly = 0;
       if (alive && aim.on && aim.dist > 8 && !cancelZone()) { lx = aim.dx; ly = aim.dy; hero.lookHold = 0.45; hero.look = [lx, ly]; }
@@ -5075,7 +5100,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v104</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v105</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
