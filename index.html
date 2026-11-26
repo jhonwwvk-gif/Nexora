@@ -380,7 +380,7 @@ svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em
 .dkx { position: absolute; aspect-ratio: 950 / 1140; pointer-events: none; }
 #hr-drak { left: calc(50% - 72px); bottom: 34px; height: 575px; transform: translateX(-50%); }
 #pr-drak { left: 50%; bottom: 96px; height: 470px; transform: translateX(-50%); pointer-events: auto; cursor: pointer; filter: drop-shadow(0 10px 14px rgba(0,0,0,.5)); -webkit-tap-highlight-color: transparent; }
-#lb-drak { left: calc(50% - 92px); bottom: 105px; height: 475px; transform: translateX(-50%); z-index: 1; display: none; }
+#lb-drak { left: calc(50% - 57px); bottom: 105px; height: 475px; transform: translateX(-50%); z-index: 1; display: none; }
 #lb-drak.on { display: block; }
 #ov-drak { left: 50%; bottom: 20px; height: 540px; transform: translateX(-50%); }
 
@@ -5100,7 +5100,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v105</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v106</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
