@@ -565,6 +565,57 @@ svg.ic { width: 1em; height: 1em; display: inline-block; vertical-align: -0.14em
 #pr-ribbon small { display: block; font-family: var(--font-body); font-weight: 800; font-size: 14px; color: #5a2f00; -webkit-text-stroke: 0; text-shadow: none; letter-spacing: .1em; margin-top: 4px; }
 #pr-ribbon b { display: block; font-size: 40px; line-height: 1; font-weight: 400; }
 
+/* ---- tela de Amigos (v108) ---- */
+#s-friends { background: radial-gradient(120% 90% at 20% 0%, #3b2bd6 0%, #1c1a8c 45%, #0e0f55 100%); z-index: 8; overflow: hidden; }
+#s-friends::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(160,120,255,.10) 0 38px, rgba(160,120,255,0) 38px 120px); pointer-events: none; }
+#fa-title { position: absolute; left: 240px; right: 240px; top: 8px; height: 84px; text-align: center; font-size: 62px; line-height: 84px; font-style: italic; color: #fff; -webkit-text-stroke: 8px #160f5e; paint-order: stroke fill; letter-spacing: 2px; text-shadow: 0 5px 0 #160f5e; }
+#fa-left { position: absolute; left: 26px; top: 112px; width: 410px; bottom: 34px; border-radius: 24px; border: 4px solid #5ec4ff; background: linear-gradient(180deg, #1f55e0, #1536a8); box-shadow: 0 8px 0 rgba(5,8,60,.55), 0 0 28px rgba(80,170,255,.35); overflow: hidden; display: flex; flex-direction: column; }
+#fa-left .hd { height: 78px; display: flex; align-items: center; gap: 14px; padding: 0 18px; font-size: 30px; line-height: 1; background: linear-gradient(180deg, #2f78ff, #1f55e0); border-bottom: 4px solid #0d2a8a; text-shadow: 0 3px 0 #0a1760; }
+#fa-left .hd svg { width: 54px; height: 54px; flex: none; }
+#fa-left .bd { padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; }
+#fa-myid { text-align: center; font-size: 30px; color: #fff; text-shadow: 0 3px 0 #0a1760; } #fa-myid b { color: #ffd93a; font-weight: 400; letter-spacing: 1px; }
+#fa-addrow { display: flex; gap: 10px; }
+#fa-inwrap { flex: 1; min-width: 0; position: relative; } #fa-inwrap svg { position: absolute; left: 12px; top: 50%; width: 30px; height: 30px; transform: translateY(-50%); opacity: .7; }
+#fa-in { width: 100%; height: 58px; border-radius: 14px; border: 4px solid #d7e1ff; background: #eef2ff; font: 800 20px var(--font-body); color: #2a2f7a; padding: 0 8px 0 50px; box-sizing: border-box; text-transform: uppercase; }
+#fa-in::placeholder { color: #8a92d4; text-transform: none; } #fa-in:focus { outline: none; border-color: #ffd23a; }
+.fa-btn { border: 0; cursor: pointer; font-family: inherit; color: #fff; border-radius: 16px; text-shadow: 0 3px 0 rgba(0,0,0,.5); line-height: 1; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.fa-btn:active { transform: translateY(3px); }
+.fa-btn.gold { background: linear-gradient(180deg, #ffe23a, #ffa400); box-shadow: 0 5px 0 #a45a00, inset 0 0 0 3px #fff3a0; color: #fff; }
+.fa-btn.green { background: linear-gradient(180deg, #5bea5b, #1fae2e); box-shadow: 0 5px 0 #0c6a18, inset 0 0 0 3px #b9ffb0; }
+.fa-btn.red { background: linear-gradient(180deg, #ff6a6a, #d6202e); box-shadow: 0 5px 0 #7a0a14, inset 0 0 0 3px #ffc0c0; }
+.fa-btn.purple { background: linear-gradient(180deg, #8a5cff, #5a2fd6); box-shadow: 0 5px 0 #2d1480, inset 0 0 0 3px #c7b0ff; }
+.fa-btn.grey { background: linear-gradient(180deg, #7f86b8, #555c93); box-shadow: 0 5px 0 #2b3060, inset 0 0 0 3px #b9bfe8; }
+#fa-add { width: 150px; height: 58px; font-size: 21px; flex: none; }
+#fa-or { display: flex; align-items: center; gap: 12px; font-size: 22px; color: #bcd6ff; } #fa-or::before, #fa-or::after { content: ''; flex: 1; height: 3px; background: rgba(150,200,255,.45); border-radius: 2px; }
+#fa-share { height: 62px; font-size: 24px; } #fa-share svg { width: 34px; height: 34px; }
+#fa-msg { min-height: 40px; font-size: 18px; font-weight: 800; color: #ffe27a; text-align: center; }
+#fa-leave { margin: 0 18px; height: 52px; font-size: 19px; }
+#fa-wm { position: absolute; left: 50%; bottom: 14px; width: 210px; transform: translateX(-50%); opacity: .22; pointer-events: none; }
+#fa-right { position: absolute; left: 456px; right: 26px; top: 112px; bottom: 34px; display: flex; flex-direction: column; }
+#fa-tabs { display: flex; gap: 10px; height: 64px; position: relative; z-index: 2; }
+.fa-tab { flex: 1; position: relative; border: 4px solid #3b27a8; border-bottom: 0; border-radius: 18px 18px 0 0; background: linear-gradient(180deg, #4a2fc4, #33208c); color: #fff; font-family: inherit; font-size: 21px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; text-shadow: 0 3px 0 rgba(0,0,0,.45); }
+.fa-tab svg { width: 32px; height: 32px; flex: none; }
+.fa-tab.on { background: linear-gradient(180deg, #ffe23a, #ff9d00); border-color: #fff3a0; box-shadow: 0 0 22px rgba(255,200,40,.55); }
+.fa-tab .bdg { position: absolute; right: -6px; top: -10px; min-width: 30px; height: 30px; padding: 0 6px; box-sizing: border-box; border-radius: 15px; background: #ff2f45; border: 3px solid #fff; font-size: 17px; line-height: 24px; text-align: center; }
+.fa-tab .bdg[hidden] { display: none; }
+#fa-panel { flex: 1; min-height: 0; border-radius: 0 0 22px 22px; border: 4px solid #2e2090; background: linear-gradient(180deg, #1b1670, #121058); box-shadow: 0 8px 0 rgba(5,8,60,.55); display: flex; flex-direction: column; padding: 12px 14px 14px; }
+#fa-sec { display: flex; align-items: center; justify-content: space-between; height: 46px; font-size: 26px; color: #fff; text-shadow: 0 3px 0 #0a0850; border-bottom: 3px solid rgba(120,100,255,.35); margin-bottom: 10px; }
+#fa-mute { height: 42px; padding: 0 14px; font-size: 16px; } #fa-mute svg { width: 24px; height: 24px; }
+#fa-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+#fa-empty { margin: auto; text-align: center; font-size: 22px; color: #a9a6ff; line-height: 1.3; max-width: 380px; }
+.fa-card { position: relative; display: flex; align-items: center; gap: 14px; min-height: 92px; padding: 8px 12px; border-radius: 18px; background: linear-gradient(180deg, #3a2a9a, #2b1f7a); border: 3px solid #4a38b8; box-shadow: 0 4px 0 rgba(5,5,50,.5); flex: none; overflow: hidden; }
+.fa-av { width: 72px; height: 72px; border-radius: 14px; border: 4px solid #ff5ccf; background: #19205a center top / cover no-repeat; flex: none; cursor: pointer; }
+.fa-nm { flex: 1; min-width: 0; } .fa-nm .n { font-size: 27px; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 0 #0a0850; }
+.fa-nm .s { font-size: 19px; font-weight: 800; color: #b9b5ff; margin-top: 3px; } .fa-nm .s.on { color: #55f06a; } .fa-nm .s .dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: #8d90b8; margin-right: 8px; vertical-align: -2px; } .fa-nm .s.on .dot { background: #34e24a; box-shadow: 0 0 8px #34e24a; }
+.fa-tr { display: flex; align-items: center; gap: 8px; font-size: 30px; text-shadow: 0 3px 0 #0a0850; } .fa-tr svg { width: 40px; height: 40px; } .fa-tr + .sep { width: 3px; height: 54px; background: rgba(255,255,255,.18); transform: rotate(12deg); }
+.fa-card .fa-btn { height: 56px; } .fa-card .sq { width: 68px; font-size: 30px; } .fa-card .sq svg { width: 36px; height: 36px; } .fa-card .tx { padding: 0 18px; font-size: 22px; min-width: 124px; }
+.fa-bar { position: absolute; left: 0; bottom: 0; height: 7px; background: linear-gradient(90deg, #ffd23a, #ff7a2a); border-radius: 0 4px 4px 0; transition: width 1s linear; }
+#fa-menu { position: absolute; z-index: 20; width: 340px; padding: 12px; border-radius: 18px; border: 4px solid #7e68ff; background: linear-gradient(180deg, #2f2290, #1c1670); box-shadow: 0 10px 24px rgba(0,0,0,.6); display: flex; flex-direction: column; gap: 10px; }
+#fa-menu[hidden] { display: none; } #fa-menu .fa-btn { height: 56px; font-size: 21px; } #fa-menu .fa-btn[disabled] { filter: grayscale(.9) brightness(.7); } #fa-menu .nm { font-size: 22px; text-align: center; color: #cfc8ff; }
+#fa-backdrop { position: absolute; inset: 0; z-index: 19; } #fa-backdrop[hidden] { display: none; }
+#s-profile.visitor #pr-edit { display: none; }
+#s-profile.visitor .pick { pointer-events: none; }
+
 /* ---------- janelas ---------- */
 #modal { position: absolute; inset: 0; z-index: 60; background: rgba(4,5,24,.74); display: none; align-items: center; justify-content: center; }
 #modal.on { display: flex; }
@@ -855,6 +906,37 @@ input[type=range] { width: 100%; accent-color: var(--gold); height: 40px; }
     </div>
     <div id="tr-scroll"><div id="tr-world"></div></div>
     <div id="tr-foot"><div class="big d" id="tr-big"></div><div class="mid"><div class="nx d" id="tr-next"></div><div class="tbar-big"><i id="tr-bar"></i></div></div><p class="hint" id="tr-hint"></p></div>
+  </section>
+
+  <section class="screen" data-screen="friends" id="s-friends" hidden>
+    <div class="topbar">
+      <button class="round-btn l pill" id="fa-back" aria-label="Voltar"></button>
+      <div id="fa-title" class="d">AMIGOS</div>
+      <button class="round-btn r pill" id="fa-home" aria-label="Lobby"></button>
+    </div>
+    <div id="fa-left">
+      <div class="hd d"><span id="fa-hdic"></span>ADICIONAR AMIGOS</div>
+      <div class="bd">
+        <div id="fa-myid" class="d">Seu ID: <b id="fa-id"></b></div>
+        <div id="fa-addrow"><div id="fa-inwrap"><span id="fa-inic"></span><input id="fa-in" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ID do jogador" aria-label="ID do jogador"></div><button class="fa-btn gold d" id="fa-add">ADICIONAR</button></div>
+        <div id="fa-or" class="d">OU</div>
+        <button class="fa-btn purple d" id="fa-share"><span id="fa-shic"></span>COMPARTILHAR ID</button>
+        <div id="fa-msg" role="status"></div>
+      </div>
+      <div style="flex:1"></div>
+      <button class="fa-btn grey d" id="fa-leave" hidden></button>
+      <img id="fa-wm" alt="">
+      <div style="height:16px"></div>
+    </div>
+    <div id="fa-right">
+      <div id="fa-tabs">
+        <button class="fa-tab d on" data-tab="friends"><span class="ic"></span>AMIGOS</button>
+        <button class="fa-tab d" data-tab="reqs"><span class="ic"></span>SOLICITAÇÕES<span class="bdg d" hidden></span></button>
+        <button class="fa-tab d" data-tab="invs"><span class="ic"></span>CONVITES<span class="bdg d" hidden></span></button>
+      </div>
+      <div id="fa-panel"><div id="fa-sec" class="d"><span id="fa-sect"></span><button class="fa-btn purple d" id="fa-mute" hidden></button></div><div id="fa-list"></div></div>
+    </div>
+    <div id="fa-backdrop" hidden></div><div id="fa-menu" hidden></div>
   </section>
 
   <section class="screen" data-screen="profile" id="s-profile" hidden>
@@ -4645,11 +4727,13 @@ const Online = (() => {
   const ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const genId = () => { let s = ''; for (let i = 0; i < 6; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return 'NX' + s; };
   let db = null, uid = null, id = lsGet('nexora_pid'), timer = 0, unsubInv = null, lastInv = Number(lsGet('nexora_lastinv') || 0);
-  let onInvite = () => {};
+  let onInvite = () => {}, onMail = () => {}, onReq = () => {}, unsubMail = null, lastTree = {}, lastSig = '';
+  let muted = lsGet('nexora_mute') === '1', reqMap = {}, invMap = {};
+  const invSeen = {}, INV_TTL = 60000;                                // convite de equipe dura 60 s (contado pelo relógio de quem recebe)
   if (!id) { id = genId(); lsSet('nexora_pid', id); }
   const friends = () => { try { return JSON.parse(lsGet('nexora_friends') || '[]'); } catch (e) { return []; } };
   const saveFriends = (a) => lsSet('nexora_friends', JSON.stringify(a));
-  const me = () => { const s = store.get(); return { id, name: s.profile.name, hero: s.selectedHero, lvl: s.heroes[s.selectedHero].level, trophies: s.trophies, seen: Date.now(), owner: uid || null }; };
+  const me = () => { const s = store.get(), un = HERO_ORDER.filter((h) => s.heroes[h].unlocked); return { id, name: s.profile.name, hero: s.selectedHero, lvl: s.heroes[s.selectedHero].level, trophies: s.trophies, fav: s.profile.favoriteHero, unl: un.join(','), best: Math.max(1, ...un.map((h) => s.heroes[h].level)), seen: Date.now(), owner: uid || null }; };
   const publish = async () => { if (!db) return; try { await db.doc('players/' + id).set(me()); } catch (e) { /* sem permissão de escrita: só leitura */ } };
   const lookup = async (pid) => { if (!db) return null; try { const sn = await db.doc('players/' + String(pid).trim().toUpperCase()).get(); return sn.exists ? sn.data() : null; } catch (e) { return null; } };
   const isOnline = (p) => !!p && Date.now() - (p.seen || 0) < 70000;
@@ -4662,10 +4746,53 @@ const Online = (() => {
     } catch (e) { /* ok */ }
     await publish();
     timer = setInterval(publish, 30000);
+    try { unsubMail = FBase.listen('mail/' + id, (t) => { lastTree = t || {}; processMail(); }, { poll: 4000 }); setInterval(() => { if (Object.keys(invMap).length || Object.keys(lastTree).some((k) => k.startsWith('inv_'))) processMail(); }, 1000); } catch (e) { /* ok */ }
     try {
       unsubInv = db.doc('invites/' + id).onSnapshot((sn) => { const d = sn.exists ? sn.data() : null; if (d && d.ts > lastInv && Date.now() - d.ts < 300000) { lastInv = d.ts; lsSet('nexora_lastinv', String(d.ts)); onInvite(d); } }, () => {});
     } catch (e) { /* ok */ }
   }
+  // caixa de correio: mail/<destino>/<tipo>_<origem>  (req = pedido de amizade · acc = aceitou · rem = removeu · inv = convite de equipe)
+  function processMail() {
+    const nr = {}, ni = {}, now = performance.now();
+    for (const key in lastTree) {
+      const v = lastTree[key]; if (!v || !v.from || typeof v !== 'object') continue;
+      if (v.k === 'req') { nr[v.from] = v; if (!reqMap[v.from]) { try { onReq(v); } catch (e) { /* ok */ } } }
+      else if (v.k === 'acc') { if (!friends().includes(v.from)) saveFriends([...friends(), v.from]); FBase.del('mail/' + id + '/' + key).catch(() => {}); delete lastTree[key]; }
+      else if (v.k === 'rem') { saveFriends(friends().filter((x) => x !== v.from)); FBase.del('mail/' + id + '/' + key).catch(() => {}); delete lastTree[key]; }
+      else if (v.k === 'inv') {
+        const sk = key + ':' + v.ts; const first = invSeen[sk] === undefined; if (first) invSeen[sk] = now;
+        const left = INV_TTL - (now - invSeen[sk]);
+        if (muted || left <= 0) { FBase.del('mail/' + id + '/' + key).catch(() => {}); delete lastTree[key]; continue; }
+        ni[v.from] = Object.assign({}, v, { left, ttl: INV_TTL });
+        if (first) { try { onInvite(v); } catch (e) { /* ok */ } }
+      }
+    }
+    const sig = Object.keys(nr).sort().join(',') + '|' + Object.keys(ni).sort().join(',') + '|' + friends().join(',');
+    reqMap = nr; invMap = ni;
+    if (sig !== lastSig) { lastSig = sig; try { onMail(); } catch (e) { /* ok */ } }
+  }
+  const reqs = () => Object.values(reqMap).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  const invs = () => Object.values(invMap);
+  async function sendRequest(pid) {
+    pid = String(pid || '').trim().toUpperCase();
+    if (!/^NX[A-Z0-9]{6}$/.test(pid)) return { ok: false, msg: 'ID inválido. Ele começa com NX e tem 8 caracteres.' };
+    if (pid === id) return { ok: false, msg: 'Esse é o seu próprio ID.' };
+    if (friends().includes(pid)) return { ok: false, msg: 'Esse jogador já é seu amigo.' };
+    if (!db) return { ok: false, msg: 'Online indisponível neste momento.' };
+    const p = await lookup(pid);
+    if (!p) return { ok: false, msg: 'Nenhum jogador encontrado com esse ID.' };
+    if (reqMap[pid]) { await accept(pid); return { ok: true, p, accepted: true }; }                  // ele já tinha pedido: viram amigos na hora
+    try { await FBase.put('mail/' + pid + '/req_' + id, { k: 'req', from: id, name: me().name, hero: me().hero, tr: me().trophies, ts: Date.now() }); } catch (e) { return { ok: false, msg: 'Não foi possível enviar o pedido. Tente de novo.' }; }
+    return { ok: true, p };
+  }
+  async function accept(from) {
+    if (!friends().includes(from)) saveFriends([...friends(), from]);
+    delete reqMap[from]; delete lastTree['req_' + from];
+    try { await FBase.put('mail/' + from + '/acc_' + id, { k: 'acc', from: id, ts: Date.now() }); await FBase.del('mail/' + id + '/req_' + from); } catch (e) { /* ok */ }
+    lastSig = ''; processMail();
+  }
+  async function decline(from) { delete reqMap[from]; delete lastTree['req_' + from]; try { await FBase.del('mail/' + id + '/req_' + from); } catch (e) { /* ok */ } lastSig = ''; processMail(); }
+  async function dismissInvite(from) { delete invMap[from]; delete lastTree['inv_' + from]; try { await FBase.del('mail/' + id + '/inv_' + from); } catch (e) { /* ok */ } lastSig = ''; processMail(); }
   async function add(pid) {
     pid = String(pid || '').trim().toUpperCase();
     if (!/^NX[A-Z0-9]{6}$/.test(pid)) return { ok: false, msg: 'ID inválido. Ele começa com NX e tem 8 caracteres.' };
@@ -4677,9 +4804,9 @@ const Online = (() => {
     saveFriends([...friends(), pid]);
     return { ok: true, p };
   }
-  const remove = (pid) => saveFriends(friends().filter((x) => x !== pid));
-  async function invite(pid) { if (!db) return false; try { await db.doc('invites/' + pid).set({ from: id, name: me().name, hero: me().hero, ts: Date.now() }); return true; } catch (e) { return false; } }
-  return { init, publish, lookup, add, remove, invite, friends, isOnline, get id() { return id; }, get available() { return !!db; }, set onInvite(f) { onInvite = f; } };
+  const remove = (pid) => { saveFriends(friends().filter((x) => x !== pid)); if (db) FBase.put('mail/' + pid + '/rem_' + id, { k: 'rem', from: id, ts: Date.now() }).catch(() => {}); };
+  async function invite(pid) { if (!db) return false; try { await FBase.put('mail/' + pid + '/inv_' + id, { k: 'inv', from: id, name: me().name, hero: me().hero, tr: me().trophies, mode: 'Mega Robô', ts: Date.now() }); return true; } catch (e) { return false; } }
+  return { init, publish, lookup, add, sendRequest, accept, decline, dismissInvite, reqs, invs, get muted() { return muted; }, set muted(v) { muted = !!v; lsSet('nexora_mute', muted ? '1' : '0'); }, set onMail(f) { onMail = f; }, set onReq(f) { onReq = f; }, remove, invite, friends, isOnline, get id() { return id; }, get available() { return !!db; }, set onInvite(f) { onInvite = f; } };
 })();
 
 // ---------------------------------------------------------------- sala (grupo de até 3 jogadores) e canais da partida em rede
@@ -5124,7 +5251,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v107</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v108</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -5708,26 +5835,119 @@ async function onPlayBtn() {
   }
   startMatch();
 }
+// ---- tela de Amigos (abas AMIGOS · SOLICITAÇÕES · CONVITES, menu "..." do amigo, perfil do amigo)
+const FA = {
+  check: '<svg viewBox="0 0 48 48"><path d="M10 25l10 10 19-21" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  x: '<svg viewBox="0 0 48 48"><path d="M12 12l24 24M36 12L12 36" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/></svg>',
+  mail: '<svg viewBox="0 0 48 48"><rect x="5" y="10" width="38" height="28" rx="5" fill="#fff"/><path d="M7 14l17 13 17-13" fill="none" stroke="#5a2fd6" stroke-width="4" stroke-linejoin="round"/></svg>',
+  ok: '<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="20" fill="#fff"/><path d="M14 25l7 7 13-15" fill="none" stroke="#2f27a8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  bell: '<svg viewBox="0 0 48 48"><path d="M24 6c-8 0-13 6-13 14v8l-4 6h34l-4-6v-8c0-8-5-14-13-14z" fill="#fff"/><path d="M19 40a5 5 0 0 0 10 0z" fill="#fff"/></svg>',
+  bellOff: '<svg viewBox="0 0 48 48"><path d="M24 6c-8 0-13 6-13 14v8l-4 6h34l-4-6v-8c0-8-5-14-13-14z" fill="#fff" opacity=".6"/><path d="M8 8l32 32" stroke="#ff4b4b" stroke-width="6" stroke-linecap="round"/></svg>',
+  share: '<svg viewBox="0 0 48 48"><circle cx="36" cy="10" r="6" fill="#fff"/><circle cx="12" cy="24" r="6" fill="#fff"/><circle cx="36" cy="38" r="6" fill="#fff"/><path d="M16 22l16-10M16 26l16 10" stroke="#fff" stroke-width="3.5"/></svg>',
+  person: '<svg viewBox="0 0 48 48"><circle cx="24" cy="15" r="9" fill="#5a4fd0"/><path d="M6 44c0-11 8-17 18-17s18 6 18 17z" fill="#5a4fd0"/></svg>',
+  dots: '<svg viewBox="0 0 48 48"><circle cx="10" cy="24" r="5" fill="#fff"/><circle cx="24" cy="24" r="5" fill="#fff"/><circle cx="38" cy="24" r="5" fill="#fff"/></svg>',
+};
+const fa = { tab: 'friends', cache: {}, iv: 0, pv: 0, menu: null, confirm: false };
+const faMsg = (t) => { $('#fa-msg').textContent = t || ''; };
+const faAv = (hero) => `background-image:url(${A['card-' + hero] || ''})`;
+function faCloseMenu() { fa.menu = null; fa.confirm = false; $('#fa-menu').hidden = true; $('#fa-backdrop').hidden = true; }
+function syncFriendDot() {
+  const n = Online.reqs().length + Online.invs().length, b = $('#btn-friends'); if (!b) return;
+  let d = b.querySelector('.dot'); if (!n) { if (d) d.remove(); return; }
+  if (!d) { d = document.createElement('span'); d.className = 'dot d'; b.appendChild(d); } d.textContent = n;
+}
+async function faProfiles() {
+  const ids = Online.friends(); await Promise.all(ids.map(async (pid) => { const p = await Online.lookup(pid); if (p) fa.cache[pid] = p; }));
+  if (currentScreen === 'friends') faRender();
+}
+function faRender() {
+  if (currentScreen !== 'friends') return;
+  const reqs = Online.reqs(), invs = Online.invs(), ids = Online.friends();
+  document.querySelectorAll('.fa-tab').forEach((t) => {
+    const k = t.dataset.tab; t.classList.toggle('on', k === fa.tab);
+    const n = k === 'reqs' ? reqs.length : k === 'invs' ? invs.length : 0, b = t.querySelector('.bdg'); if (b) { b.hidden = !n; b.textContent = n; }
+  });
+  $('#fa-mute').hidden = fa.tab !== 'invs';
+  $('#fa-mute').innerHTML = (Online.muted ? FA.bellOff : FA.bell) + (Online.muted ? 'CONVITES SILENCIADOS' : 'NÃO PERTURBE');
+  const lv = $('#fa-leave'); lv.hidden = !Party.active; if (Party.active) lv.textContent = 'SAIR DA SALA (' + Party.members().length + '/3)';
+  const trophy = ICON.trophy;
+  let html = '', title = '', empty = '';
+  if (fa.tab === 'friends') {
+    title = `AMIGOS (${ids.length})`; empty = 'Você ainda não tem amigos.<br>Digite o ID de um amigo ao lado e envie um pedido!';
+    html = ids.map((pid) => { const p = fa.cache[pid], on = Online.isOnline(p);
+      return `<div class="fa-card"><div class="fa-av" data-prof="${pid}" style="${faAv(p ? (p.fav || p.hero) : 'hugi')}"></div><div class="fa-nm"><div class="n d">${esc(p ? p.name : pid)}</div><div class="s d ${on ? 'on' : ''}"><span class="dot"></span>${on ? 'Online' : 'Offline'}</div></div><div class="fa-tr d">${trophy}${p ? fmt(p.trophies || 0) : '–'}</div><div class="sep"></div><button class="fa-btn purple sq d" data-menu="${pid}" aria-label="Opções">${FA.dots}</button></div>`; }).join('');
+  } else if (fa.tab === 'reqs') {
+    title = `SOLICITAÇÕES RECEBIDAS (${reqs.length})`; empty = 'Nenhuma solicitação no momento.';
+    html = reqs.map((v) => `<div class="fa-card"><div class="fa-av" data-prof="${v.from}" style="${faAv(v.hero)}"></div><div class="fa-nm"><div class="n d">${esc(v.name)}</div><div class="s d">quer ser seu amigo</div></div><div class="fa-tr d">${trophy}${fmt(v.tr || 0)}</div><button class="fa-btn green sq d" data-acc="${v.from}" aria-label="Aceitar">${FA.check}</button><button class="fa-btn red sq d" data-dec="${v.from}" aria-label="Recusar">${FA.x}</button></div>`).join('');
+  } else {
+    title = `CONVITES DE EQUIPE (${invs.length})`; empty = Online.muted ? 'Você silenciou os convites.<br>Toque em CONVITES SILENCIADOS para voltar a recebê-los.' : 'Nenhum convite no momento.';
+    html = invs.map((v) => `<div class="fa-card"><div class="fa-av" data-prof="${v.from}" style="${faAv(v.hero)}"></div><div class="fa-nm"><div class="n d">${esc(v.name)}</div><div class="s d">Convidou para: ${esc(v.mode || 'Mega Robô')}</div></div><button class="fa-btn green tx d" data-join="${v.from}">ENTRAR</button><button class="fa-btn red tx d" data-no="${v.from}">RECUSAR</button><div class="fa-bar" style="width:${Math.max(0, Math.min(100, v.left / v.ttl * 100))}%"></div></div>`).join('');
+  }
+  $('#fa-sect').textContent = title;
+  $('#fa-list').innerHTML = html || `<div id="fa-empty" class="d">${empty}</div>`;
+}
+function faOpenMenu(pid, btn) {
+  const p = fa.cache[pid], on = Online.isOnline(p), sf = $('#s-friends'), k = sf.getBoundingClientRect().width / sf.offsetWidth || 1, r = btn.getBoundingClientRect(), sr = sf.getBoundingClientRect();
+  fa.menu = pid; fa.confirm = false;
+  const m = $('#fa-menu');
+  m.innerHTML = `<div class="nm d">${esc(p ? p.name : pid)}</div><button class="fa-btn gold d" data-m="inv" ${on ? '' : 'disabled'}>CONVIDAR PARA EQUIPE</button><button class="fa-btn purple d" data-m="prof">VER PERFIL</button><button class="fa-btn red d" data-m="rm">REMOVER AMIGO</button>`;
+  m.hidden = false; $('#fa-backdrop').hidden = false;
+  const h = m.offsetHeight, top = Math.max(10, Math.min(720 - h - 10, (r.top - sr.top) / k - h / 2 + 30));
+  m.style.left = Math.max(10, (r.left - sr.left) / k - 350) + 'px'; m.style.top = top + 'px';
+}
+async function faMenuAct(act) {
+  const pid = fa.menu, p = fa.cache[pid]; if (!pid) return; sfx.tap();
+  if (act === 'rm') {
+    if (!fa.confirm) { fa.confirm = true; const b = $('#fa-menu [data-m="rm"]'); b.textContent = 'TOQUE DE NOVO PARA CONFIRMAR'; b.style.fontSize = '16px'; return; }
+    Online.remove(pid); delete fa.cache[pid]; faCloseMenu(); faMsg('Amigo removido.'); faRender(); return;
+  }
+  faCloseMenu();
+  if (act === 'prof') { openFriendProfile(pid); return; }
+  if (act === 'inv') {
+    if (!(await Party.ensureOwn())) { faMsg('Só o dono da sala pode convidar.'); return; }
+    if (Party.members().length >= 3) { faMsg('A sala está cheia (máximo de 3 jogadores).'); return; }
+    faMsg((await Online.invite(pid)) ? `Convite enviado para ${p ? p.name : pid}!` : 'Não foi possível enviar o convite.');
+  }
+}
 function openFriends() {
-  const w = openModal(`<h2 class="d">AMIGOS</h2><div class="fr-win">
-    <div class="me"><span class="d">SEU ID:</span><b class="d" id="fr-id">${Online.id}</b><button class="pill-btn d mini" id="fr-copy">COPIAR</button></div>
-    <div class="row"><input id="fr-in" maxlength="8" placeholder="ID DO AMIGO (NX……)" aria-label="ID do amigo"><button class="pill-btn green d mini" id="fr-add">ADICIONAR</button></div>
-    <div class="msg d" id="fr-msg">${Online.available ? '' : 'Online indisponível agora. Confira sua internet e tente de novo.'}</div>
-    <div class="fl" id="fr-list"></div>
-    ${Party.active ? '<div class="row"><button class="pill-btn d mini" id="fr-leave">SAIR DA SALA (' + Party.members().length + '/3)</button></div>' : ''}</div>`);
-  const msg = (t) => { $('#fr-msg').textContent = t; };
-  let alive = true; const origClose = w.close; w.close = () => { alive = false; origClose(); };
-  const render = async () => {
-    const ids = Online.friends(), rows = await Promise.all(ids.map(async (pid) => ({ pid, p: await Online.lookup(pid) })));
-    if (!alive) return;
-    $('#fr-list').innerHTML = rows.length ? rows.map(({ pid, p }) => { const on = Online.isOnline(p); return `<div class="fr"><img alt="" src="${p && A['card-' + p.hero] ? A['card-' + p.hero] : ''}"><div class="nm d">${esc(p ? p.name : pid)}<small class="${on ? 'on' : 'off'}">${on ? 'ONLINE' : 'OFFLINE'} · ${esc(pid)}</small></div>${on ? `<button class="pill-btn green d mini" data-inv="${pid}">CONVIDAR</button>` : ''}<button class="pill-btn d mini" data-rm="${pid}" aria-label="Remover">✕</button></div>`; }).join('') : '<p class="d" style="opacity:.8">Você ainda não tem amigos. Peça o ID de um amigo e adicione acima.</p>';
-    $('#fr-list').querySelectorAll('[data-inv]').forEach((b) => { b.onclick = async () => { sfx.tap(); if (!(await Party.ensureOwn())) { msg('Só o dono da sala pode convidar.'); return; } if (Party.members().length >= 3) { msg('A sala está cheia (máximo de 3 jogadores).'); return; } msg((await Online.invite(b.dataset.inv)) ? 'Convite enviado!' : 'Não foi possível enviar o convite.'); }; });
-    $('#fr-list').querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => { sfx.tap(); Online.remove(b.dataset.rm); render(); }; });
+  fa.tab = 'friends'; faCloseMenu(); faMsg(Online.available ? '' : 'Online indisponível agora. Confira sua internet.');
+  $('#fa-id').textContent = Online.id;
+  show('friends'); Online.publish(); faRender(); faProfiles();
+  clearInterval(fa.iv); clearInterval(fa.pv);
+  fa.iv = setInterval(() => { if (currentScreen !== 'friends') { clearInterval(fa.iv); clearInterval(fa.pv); return; } if (fa.tab === 'invs') faRender(); }, 1000);
+  fa.pv = setInterval(faProfiles, 12000);
+}
+function initFriendsUi() {
+  $('#fa-back').innerHTML = ICON.back; $('#fa-home').innerHTML = ICON.home; $('#fa-hdic').innerHTML = ICON.people; $('#fa-inic').innerHTML = FA.person; $('#fa-shic').innerHTML = FA.share; $('#fa-wm').src = A['nexora-logo'] || '';
+  document.querySelectorAll('.fa-tab').forEach((t) => { t.querySelector('.ic').innerHTML = t.dataset.tab === 'friends' ? ICON.people : t.dataset.tab === 'reqs' ? FA.ok : FA.mail; t.onclick = () => { sfx.tap(); fa.tab = t.dataset.tab; faCloseMenu(); faRender(); }; });
+  $('#fa-back').onclick = () => { sfx.tap(); show('lobby'); }; $('#fa-home').onclick = () => { sfx.tap(); show('lobby'); };
+  $('#fa-add').onclick = async () => { sfx.tap(); const v = $('#fa-in').value; faMsg('Enviando…'); const r = await Online.sendRequest(v); faMsg(r.ok ? (r.accepted ? `${r.p.name} agora é seu amigo!` : `Pedido enviado para ${r.p.name}!`) : r.msg); if (r.ok) { $('#fa-in').value = ''; faProfiles(); faRender(); } };
+  $('#fa-in').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#fa-add').click(); });
+  $('#fa-share').onclick = async () => { sfx.tap(); const t = `Me adiciona no NEXORA! Meu ID: ${Online.id}`; try { if (navigator.share) { await navigator.share({ title: 'NEXORA', text: t }); return; } } catch (e) { if (e && e.name === 'AbortError') return; } try { await navigator.clipboard.writeText(Online.id); faMsg('ID copiado!'); } catch (e) { faMsg('Seu ID: ' + Online.id); } };
+  $('#fa-leave').onclick = () => { sfx.tap(); Party.leave(); toast('Você saiu da sala.'); faRender(); };
+  $('#fa-mute').onclick = () => { sfx.tap(); Online.muted = !Online.muted; faRender(); toast(Online.muted ? 'Convites silenciados.' : 'Você voltou a receber convites.'); };
+  $('#fa-backdrop').onclick = faCloseMenu;
+  $('#fa-menu').onclick = (e) => { const b = e.target.closest('[data-m]'); if (b && !b.disabled) faMenuAct(b.dataset.m); };
+  $('#fa-list').onclick = async (e) => {
+    const t = e.target.closest('[data-prof],[data-menu],[data-acc],[data-dec],[data-join],[data-no]'); if (!t) return; sfx.tap();
+    if (t.dataset.prof) openFriendProfile(t.dataset.prof);
+    else if (t.dataset.menu) faOpenMenu(t.dataset.menu, t);
+    else if (t.dataset.acc) { const v = Online.reqs().find((x) => x.from === t.dataset.acc); await Online.accept(t.dataset.acc); toast(`${v ? v.name : 'Jogador'} agora é seu amigo!`); faProfiles(); faRender(); }
+    else if (t.dataset.dec) { await Online.decline(t.dataset.dec); faRender(); }
+    else if (t.dataset.no) { await Online.dismissInvite(t.dataset.no); faRender(); }
+    else if (t.dataset.join) { const v = Online.invs().find((x) => x.from === t.dataset.join); const r = await Party.join(t.dataset.join); await Online.dismissInvite(t.dataset.join); toast(r.ok ? `Você entrou na sala de ${v ? v.name : 'seu amigo'}.` : r.msg); if (r.ok) { show('lobby'); renderParty(); } else faRender(); }
   };
-  $('#fr-copy').onclick = () => { sfx.tap(); try { navigator.clipboard.writeText(Online.id); msg('ID copiado!'); } catch (e) { msg('Seu ID: ' + Online.id); } };
-  $('#fr-add').onclick = async () => { sfx.tap(); const r = await Online.add($('#fr-in').value); msg(r.ok ? `${r.p.name} adicionado!` : r.msg); if (r.ok) { $('#fr-in').value = ''; render(); } };
-  const lv = $('#fr-leave'); if (lv) lv.onclick = () => { Party.leave(); w.close(); toast('Você saiu da sala.'); };
-  Online.publish(); render(); const iv = setInterval(() => { if (!alive) clearInterval(iv); else render(); }, 12000);
+  Online.onMail = () => { syncFriendDot(); faRender(); };
+  Online.onReq = (v) => { toast(`${v.name} quer ser seu amigo!`); sfx.item && sfx.item(1); };
+  syncFriendDot();
+}
+// perfil de OUTRO jogador: mesma tela do perfil, com os dados dele (nome, troféus, heróis, herói favorito)
+let visiting = null;
+async function openFriendProfile(pid) {
+  const p = fa.cache[pid] || await Online.lookup(pid); if (!p) { toast('Não foi possível abrir o perfil agora.'); return; }
+  visiting = p; editingName = false; $('#pr-err').textContent = ''; renderProfile(); show('profile');
+  const f = p.fav || p.hero;
+  setTimeout(() => { if (f === 'hugi') hgPlay($('#pr-hugi')); else if (f === 'jubi') { jiInit(); JI.pr.play(); } else if (f === 'drak') { jiInit(); JI.dk.pr.play(); } }, 250);
 }
 
 // ---------------------------------------------------------------- Orbe
@@ -5932,20 +6152,22 @@ let editingName = false;
 const silCache = {};
 
 function renderProfile() {
-  const s = store.get();
-  const fav = s.profile.favoriteHero;
+  const s = store.get(), V = visiting;
+  const vUnl = V ? (V.unl ? String(V.unl).split(',') : [V.hero]).filter((id) => HEROES[id]) : null;
+  const fav = V ? (HEROES[V.fav] ? V.fav : (HEROES[V.hero] ? V.hero : 'hugi')) : s.profile.favoriteHero;
+  $('#s-profile').classList.toggle('visitor', !!V); $('#profile-title h2').textContent = 'PERFIL'; $('#profile-title p').textContent = V ? 'Perfil de ' + V.name : 'Seu nome, seu herói favorito e suas conquistas';
   $('#pr-badge').src = cardSrc(fav);
-  $('#pr-name').textContent = s.profile.name;
+  $('#pr-name').textContent = V ? V.name : s.profile.name;
   $('#pr-name-card').classList.toggle('editing', editingName);
-  const unlocked = HERO_ORDER.filter((id) => s.heroes[id].unlocked);
-  const best = Math.max(...unlocked.map((id) => s.heroes[id].level));
+  const unlocked = V ? vUnl : HERO_ORDER.filter((id) => s.heroes[id].unlocked);
+  const best = V ? (V.best || V.lvl || 1) : Math.max(...unlocked.map((id) => s.heroes[id].level));
   $('#pr-stats').innerHTML = [
-    [ICON.trophy, `${fmt(s.trophies)}`, `TROFÉUS · MÁX. ${fmt(TROPHIES.max)}`],
+    [ICON.trophy, `${fmt(V ? (V.trophies || 0) : s.trophies)}`, `TROFÉUS · MÁX. ${fmt(TROPHIES.max)}`],
     [ICON.people, `${unlocked.length}/${HERO_ORDER.length}`, 'HERÓIS LIBERADOS'],
     [ICON.sword, `Nv. ${best}`, 'MAIOR NÍVEL'],
   ].map(([ic, v, k]) => `<div class="pr-card stat"><div>${ic}</div><div class="v d">${v}</div><div class="k">${k}</div></div>`).join('');
   $('#pr-picks').innerHTML = HERO_ORDER.map((id) => {
-    const h = s.heroes[id];
+    const h = V ? { unlocked: vUnl.includes(id) } : s.heroes[id];
     return `<button class="pick ${fav === id ? 'on' : ''} ${h.unlocked ? '' : 'locked'}" data-hero="${id}" aria-label="${HEROES[id].name}" ${h.unlocked ? '' : 'disabled'}>
       <img alt="" src="${cardSrc(id)}"><span class="lk">${ICON.lock}</span><span class="nm d">${HEROES[id].name.toUpperCase()}</span></button>`;
   }).join('');
@@ -5992,7 +6214,7 @@ function saveName() {
 }
 
 function openProfile() {
-  editingName = false;
+  visiting = null; editingName = false;
   $('#pr-err').textContent = '';
   renderProfile();
   show('profile');
@@ -6075,12 +6297,13 @@ function wire() {
   Party.onChange = () => { if (currentScreen === 'lobby') renderParty(); };
   Party.onMatch = (m) => { if (Party.isOwner() || busy) return; startMatch({ match: m }); };            // o dono apertou COMEÇAR: todos vão para o carregamento
   Party.onGone = (why) => { toast(why === 'kicked' ? 'Você saiu da sala.' : 'O dono desfez a sala.'); if (currentScreen === 'game' && netMatch && game && !game.ended) { /* a partida em andamento segue até a conexão cair */ } if (currentScreen === 'lobby') renderParty(); };
-  Online.onInvite = (d) => { const w = openModal(`<h2 class="d">CONVITE!</h2><div style="width:480px;text-align:center"><p><b>${esc(d.name)}</b> chamou você para jogar junto.</p><div class="row" style="display:flex;gap:12px"><button class="pill-btn d" data-no>RECUSAR</button><button class="pill-btn green d" data-yes>ACEITAR</button></div></div>`); w.el.querySelector('[data-no]').onclick = () => w.close(); w.el.querySelector('[data-yes]').onclick = async () => { w.close(); const r = await Party.join(d.from); toast(r.ok ? `Você entrou na sala de ${d.name}.` : r.msg); renderParty(); }; sfx.item && sfx.item(2); };
+  Online.onInvite = (d) => { const w = openModal(`<h2 class="d">CONVITE!</h2><div style="width:480px;text-align:center"><p><b>${esc(d.name)}</b> chamou você para jogar junto.</p><div class="row" style="display:flex;gap:12px"><button class="pill-btn d" data-no>RECUSAR</button><button class="pill-btn green d" data-yes>ACEITAR</button></div></div>`); w.el.querySelector('[data-no]').onclick = () => { w.close(); Online.dismissInvite(d.from); }; w.el.querySelector('[data-yes]').onclick = async () => { w.close(); Online.dismissInvite(d.from); const r = await Party.join(d.from); toast(r.ok ? `Você entrou na sala de ${d.name}.` : r.msg); renderParty(); }; sfx.item && sfx.item(2); };
+  initFriendsUi();
   Online.init();
   press('#profile', openTrophies);
   press('#pf-av', openProfile);
-  press('#pr-back', () => show('lobby'));
-  press('#pr-home', () => show('lobby'));
+  press('#pr-back', () => { if (visiting) { visiting = null; openFriends(); } else show('lobby'); });
+  press('#pr-home', () => { visiting = null; show('lobby'); });
   press('#pr-edit', startEditName);
   press('#pr-save', saveName);
   press('#pr-cancel', cancelEditName);
