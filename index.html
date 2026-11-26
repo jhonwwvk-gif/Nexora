@@ -3449,9 +3449,9 @@ function createGame(host, A, hooks) {
     return r;
   }
   const UF = ['id', 'name', 'x', 'y', 'face', 'side', 'moving', 'walk', 'bush', 'hp', 'maxHp', 'ammo', 'fuel', 'charge', 'dead', 'yaw', 'reveal', 'spawn', 'circuits', 'dash', 'burning', 'look', 'lookHold', 'stun', 'burn', 'sinceHit', 'lvl', 'speed'];
-  const packUnit = (u, name) => { const r = {}; for (const k of UF) { const v = u[k]; if (v === undefined) continue; r[k] = typeof v === 'number' ? Math.round(v * 100) / 100 : (v && typeof v === 'object' ? pk(v) : v); } if (name) r.name = name; return r; };
+  const packUnit = (u, name, pid) => { const r = {}; if (pid) r.pid = pid; for (const k of UF) { const v = u[k]; if (v === undefined) continue; r[k] = typeof v === 'number' ? Math.round(v * 100) / 100 : (v && typeof v === 'object' ? pk(v) : v); } if (name) r.name = name; return r; };
   function packState() {
-    const S = { en: ended, et: Math.round(endT * 100) / 100, u: [packUnit(hero, NET.seats[0].name), ...bots.map((b) => packUnit(b))], R: pk(robot), m: minis.map((m) => pk(m)), rm: pk(rm),
+    const S = { en: ended, et: Math.round(endT * 100) / 100, u: [packUnit(hero, NET.seats[0].name, NET.seats[0].id), ...bots.map((b) => packUnit(b, null, b.rid))], R: pk(robot), m: minis.map((m) => pk(m)), rm: pk(rm),
       w: wolf ? pk(wolf) : null, bw: bwolves.map((w) => Object.assign(pk(w), { oi: bots.indexOf(w.owner) + 1 })),
       bu: bullets.map((b) => Object.assign(pk(b), { fk: b.fx === FX.hugiSuper ? 1 : 0 })), bb: bbul.map((b) => pk(b)), eb: ebul.map((b) => pk(b)), fl: flames.map((b) => pk(b)), wv: waves.map((b) => pk(b)),
       bl: balls.map((b) => pk(b)), ms: missiles.map((b) => pk(b)), bo: booms.map((b) => pk(b)), cl: claws.map((b) => pk(b)), mk: marks.map((b) => pk(b)), bf: bfx.map((b) => pk(b)),
@@ -3486,7 +3486,9 @@ function createGame(host, A, hooks) {
   function applySnap(S) {
     NET.snapAt = performance.now();
     if (S.ii && S.ii.length) { const st = String(S.ii[0]), tt = Number(S.ii[1]) || 0; if (!intro) intro = { t: tt, stage: st, rt: 0, pt: 0 }; else { intro.stage = st; intro.t = tt; } } else if (intro) intro = null;   // abertura do robô: o amigo vê a mesma que o dono
-    const nu = S.u.length, me = NET.seat;
+    const nu = S.u.length; let me = NET.seat;
+    if (NET.myPid) { const mi = S.u.findIndex((x) => x.pid === NET.myPid); if (mi >= 0) me = mi; }
+    NET.seat = me;
     while (bots.length < nu - 1) bots.push(NEWU());
     bots.length = Math.max(0, nu - 1);
     for (let i = 0; i < nu; i++) {
@@ -3631,7 +3633,7 @@ function createGame(host, A, hooks) {
 
   return {
     start(heroId, speed, level, net) {
-      NET.role = net ? net.role : 'solo'; NET.seats = net ? net.seats : null; NET.seat = net && net.seat || 0; NET.sendSnap = net && net.sendSnap || null; NET.sendInput = net && net.sendInput || null; NET.fast = net && net.fast || null;
+      NET.role = net ? net.role : 'solo'; NET.seats = net ? net.seats : null; NET.seat = net && net.seat || 0; NET.sendSnap = net && net.sendSnap || null; NET.sendInput = net && net.sendInput || null; NET.fast = net && net.fast || null; NET.myPid = net && net.myPid || '';
       NET.snap = null; NET.got = 0; NET.applied = 0; NET.lastTs = 0; NET.curTs = undefined; NET.arr.length = 0; NET.tileDone = 0; NET.n = 0; NET.aN = 0; NET.sN = 0; NET.iT = 0; NET.sT = 0; NET.lost = false; NET.snapAt = performance.now(); NET.seenFx.clear(); tileEv.length = 0; rayCache.clear(); cracks.length = 0;
       rdust.length = 0; stepIdx = -1;
       ar = createArena(); grid = ar.grid; debris.length = 0; orbs.length = 0; bursts.length = 0;
@@ -3653,7 +3655,33 @@ function createGame(host, A, hooks) {
     },
     netIn(id, inp) { const b = bots.find((x) => x.rid === id); if (!b || !inp || !(inp.n > b.rn)) return; b.rn = inp.n; b.rin = inp; b.rt = performance.now(); },   // controles de um amigo (só o dono usa)
     netStats() { const now = performance.now(), r = NET.arr.filter((t) => now - t < 2000).length / 2; return { role: NET.role, rate: r, gap: NET.arr.length ? Math.round(now - NET.arr[NET.arr.length - 1]) : -1 }; },
-    netSnap(S) { if (NET.role === 'client' && S && S.u) { NET.snap = S; NET.got++; } },                                                                         // foto do estado (só o amigo usa)
+    netSnap(S) { if (NET.role === 'client' && S && S.u) { NET.snap = S; NET.got++; } },
+    // O dono saiu da partida: este celular assume o comando (vira "dono"): os outros heróis viram bots/amigos controlados daqui, o mundo continua como estava na última foto
+    becomeHost(info) {
+      if (NET.role !== 'client' || !hero) return false;
+      const want = new Map(info.seats.slice(1).map((s) => [s.id, s])), old = bots.slice(), map = new Map(), nb = [];
+      let slot = 0;
+      for (const u of old) {
+        if (u.pid && u.pid === info.goneId) continue;                                              // o dono que saiu fica de fora
+        const fr = u.pid ? want.get(u.pid) : null, i = slot++;
+        const lv = fr ? Math.max(1, Math.min(5, fr.lvl || u.lvl || 5)) : 5, hpv = u.maxHp || (fr ? hpAtLevel(u.id, lv) : HEROES[u.id].hp), brave = 0.2 + Math.random() * 0.8;
+        ensureSprites(u.id);
+        const n = { id: u.id, name: u.name, remote: !!fr, rid: fr ? fr.id : null, rt: performance.now() + 6000, rin: null, raN: 0, rsN: 0, rn: -1, lvf: DAMAGE_PERCENT_BY_LEVEL[lv] / 100, baseHp: hpv, x: u.x, y: u.y, home: [u.x, u.y], face: u.face || 1, side: u.side || null, moving: false, walk: 0, bush: !!u.bush,
+          hp: u.hp, maxHp: u.maxHp || hpv, ammo: u.ammo !== undefined ? u.ammo : GM_BARS.max, fuel: u.fuel !== undefined ? u.fuel : GM_FLAME.max, dead: u.dead || 0, cd: 1 + i * 0.5, burst: 0, bt: 0, bgap: GM_BURST.gap, bsup: false, bdir: [1, 0], tick: 0, burning: !!u.burning, strafe: 1, st: 0, yaw: u.yaw || 0, circuits: u.circuits || 0,
+          charge: u.charge || 0, brave, role: i === 0 ? 'attacker' : 'support', retreatAt: 0.12 + 0.18 * (1 - brave), state: 'fight', decided: false, keep: false, sinceHurt: 9, sinceAtk: 9, spawn: u.spawn || 0, reveal: u.reveal || 0, stun: u.stun || 0, burn: u.burn || 0 };
+        map.set(u, n); nb.push(n);
+      }
+      bots.length = 0; for (const n of nb) bots.push(n);
+      for (let i = bwolves.length - 1; i >= 0; i--) { const w = bwolves[i]; if (w.owner && map.has(w.owner)) w.owner = map.get(w.owner); else bwolves.splice(i, 1); }   // lobos dos amigos seguem; os outros somem
+      wolf = null; intro = null; wolfShot = null;
+      NET.role = 'host'; NET.seats = info.seats; NET.seat = 0; NET.sendSnap = info.sendSnap; NET.sendInput = null; NET.fast = info.fast || null; NET.myPid = ''; NET.sT = 0; NET.lost = false; NET.snap = null;
+      return true;
+    },
+    // Outro amigo assumiu o comando: continua como amigo, mas espera as fotos do novo dono
+    netNewHost() {
+      NET.lastTs = 0; NET.curTs = undefined; NET.snapAt = performance.now(); NET.got = 0; NET.applied = 0; NET.lost = false; NET.snap = null; NET.arr.length = 0;
+      for (const o of [hero, robot, wolf, ...bots, ...minis]) if (o) o.sTs = undefined;
+    },                                                                         // foto do estado (só o amigo usa)
     get net() { return NET; }, get ended() { return ended; },
     _dbg() { return { NET, hero, ar, debris, robot, bullets, minis, ebul, rm, bots, bwolves, missiles, get intro() { return intro; }, skipIntro, spawnBot }; },   // só para testes
     stop() { running = false; cancelAnimationFrame(raf); gsfx.flame(false); },
@@ -4737,9 +4765,10 @@ const Party = (() => {
   let inBusy = false, inQueued = null;
   const putIn = (obj) => { if (!rid) return; if (P2P.active && P2P.sendTo(P2P.ownerId, JSON.stringify(obj))) return; if (inBusy) { inQueued = obj; return; } inBusy = true; const t0 = performance.now(); FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { NXR.inp = Math.round(performance.now() - t0); inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
   // fotos e controles chegam direto (WebRTC) e também pelo banco (reserva); o que for mais velho que o último recebido é ignorado
-  const listenSnap = (cb) => { let lastTs = 0; P2P.onRx((id, S) => { if (S && S.u && S.ts > lastTs) { lastTs = S.ts; cb(S); } }); const un = FBase.listen('rsnap/' + rid, (t) => { if (t && t.ts !== undefined) { if (t.ts <= lastTs) return; lastTs = t.ts; } cb(t); }, { stall: 2000, stallPoll: 250, coalesce: 25 }); return () => { un(); P2P.onRx(null); }; };
+  let resetSnapTs = () => {};                                        // quando o comando da partida passa para outro celular, o relógio dele é outro: zera a comparação
+  const listenSnap = (cb) => { let lastTs = 0; resetSnapTs = () => { lastTs = 0; }; P2P.onRx((id, S) => { if (S && S.u && S.ts > lastTs) { lastTs = S.ts; cb(S); } }); const un = FBase.listen('rsnap/' + rid, (t) => { if (t && t.ts !== undefined) { if (t.ts <= lastTs) return; lastTs = t.ts; } cb(t); }, { stall: 2000, stallPoll: 250, coalesce: 25 }); return () => { un(); P2P.onRx(null); }; };
   const listenIn = (cb) => { P2P.onRx((id, I) => { if (I) cb({ [id]: I }); }); const un = FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 }); return () => { un(); P2P.onRx(null); }; };
-  return { p2pHost: P2P.hostConnect, p2pJoin: P2P.join, p2pStop: P2P.stop, p2pFast: P2P.fast, sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
+  return { resetSnapTs: () => resetSnapTs(), p2pHost: P2P.hostConnect, p2pJoin: P2P.join, p2pStop: P2P.stop, p2pFast: P2P.fast, sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
     get active() { return !!rid; }, get room() { return room; }, get id() { return rid; }, get me() { return members().find((m) => m.id === myId()) || null; },
     set onChange(f) { onChange = f; }, set onMatch(f) { onMatch = f; }, set onPlay(f) { onPlay = f; }, set onGone(f) { onGone = f; } };
 })();
@@ -5046,7 +5075,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v103</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v104</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -5449,7 +5478,7 @@ function netOptions(n) {
   }
   const unsub = Party.listenSnap((tree) => { if (tree && game) game.netSnap(tree); });   // amigo: manda controles, recebe fotos
   netMatch = { match: n.match, role: 'client', seat: n.seat, unsub };
-  return { role: 'client', seats, seat: n.seat, sendInput: (o) => Party.putIn(o), fast: () => Party.p2pFast() };
+  return { role: 'client', seats, seat: n.seat, myPid: Online.id, sendInput: (o) => Party.putIn(o), fast: () => Party.p2pFast() };
 }
 
 const netDiag = (() => {                                            // medidor de rede discreto (TESTE): mostra quantas fotos por segundo o jogo está enviando/recebendo
@@ -5472,8 +5501,35 @@ function startGame(n) {
   game.start(st.selectedHero, HEROES[st.selectedHero].speed, st.heroes[st.selectedHero].level, n ? netOptions(n) : null);
   if (location.search.includes('debug')) { window.__game = game; window.__store = store; }
 }
-function onNetLost() { if (!netMatch) return; toast(netMatch.role === 'client' ? 'A conexão com o dono da sala caiu.' : 'Conexão perdida.'); leaveGameToLobby(); }
-function leaveGameToLobby() { if (game) game.stop(); $('#g-result').hidden = true; if (netMatch) { const own = netMatch.role === 'host'; netStop(); Party.backToLobby(); if (own) { /* o dono já devolveu a sala ao lobby */ } } renderLobby(); show('lobby'); }
+function onNetLost() { if (!netMatch) return; if (netMatch.role === 'client' && hostLost()) return; toast(netMatch.role === 'client' ? 'A conexão com o dono da sala caiu.' : 'Conexão perdida.'); leaveGameToLobby(); }
+// O dono saiu da partida: o primeiro amigo que sobrou assume o comando e os outros continuam jogando (só uma vez por partida)
+let migrated = false, migrating = false;
+function hostLost() {
+  if (!netMatch || netMatch.role !== 'client' || !game || game.ended || migrating || migrated) return false;
+  const m = netMatch.match, goneId = m.seats[0].id, mine = Online.id, alive = new Set(Party.members().map((x) => x.id));
+  const rest = m.seats.filter((s) => s.id !== goneId && (s.id === mine || alive.has(s.id)));
+  if (!rest.some((s) => s.id === mine)) return false;
+  const nh = rest[0];
+  migrating = true; migrated = true; setTimeout(() => { migrating = false; }, 3000);
+  try {
+    if (nh.id === mine) {
+      try { netMatch.unsub && netMatch.unsub(); } catch (e) { /* ok */ }
+      if (!game.becomeHost({ seats: rest, goneId, sendSnap: (o) => Party.putSnap(o), fast: () => Party.p2pFast() })) return false;
+      const unsub = Party.listenIn((tree) => { if (!tree || !game) return; for (const id in tree) game.netIn(id, tree[id]); });
+      netMatch = { match: m, role: 'host', seat: 0, unsub };
+      Party.p2pHost(rest.slice(1).map((s) => s.id));
+      toast('O dono saiu. Você assumiu a partida!');
+    } else {
+      Party.resetSnapTs(); game.netNewHost(); Party.p2pJoin(nh.id);
+      toast((nh.name || 'Um amigo') + ' assumiu a partida.');
+    }
+    return true;
+  } catch (e) { try { console.warn('repasse da partida:', e && e.message); } catch (x) { /* ok */ } return false; }
+}
+setInterval(() => {                                                   // o dono voltou ao lobby no meio da partida (a sala deixa de estar "playing")
+  if (netMatch && netMatch.role === 'client' && game && !game.ended && Party.room && Party.room.state === 'lobby') hostLost();
+}, 500);
+function leaveGameToLobby() { migrated = false; migrating = false; if (game) game.stop(); $('#g-result').hidden = true; if (netMatch) { const own = netMatch.role === 'host'; netStop(); Party.backToLobby(); if (own) { /* o dono já devolveu a sala ao lobby */ } } renderLobby(); show('lobby'); }
 
 // fim da partida: Vitória (derrotou o Mega Robô) ou Derrota (todos caídos ao mesmo tempo)
 let lastTrophyGain = null;
