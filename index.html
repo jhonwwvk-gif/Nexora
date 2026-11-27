@@ -4916,10 +4916,10 @@ const Party = (() => {
 
   // ── Ligação direta entre os celulares (WebRTC). O banco só serve para os dois se acharem; o jogo passa direto (bem mais rápido). Se falhar, segue pelo banco como antes.
   const P2P = (() => {
-    const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }] };
+    const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }, { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }] };   // TURN gratuito: retransmite quando a operadora bloqueia a ligação direta
     let peers = {}, unsubs = [], expect = [], role = '', rx = null, ownerId = '', lastOffer = 0, on = false;
     const ok = () => typeof RTCPeerConnection === 'function';
-    const gathered = (pc) => new Promise((res) => { if (pc.iceGatheringState === 'complete') return res(); const f = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', f); res(); } }; pc.addEventListener('icegatheringstatechange', f); setTimeout(res, 2500); });
+    const gathered = (pc) => new Promise((res) => { if (pc.iceGatheringState === 'complete') return res(); const f = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', f); res(); } }; pc.addEventListener('icegatheringstatechange', f); setTimeout(res, 4000); });
     function newPeer(id) { drop(id); const pc = new RTCPeerConnection(ICE); const p = { pc, dc: null, open: false, sdpSet: false }; peers[id] = p; pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' || pc.connectionState === 'closed' || pc.connectionState === 'disconnected') p.open = false; }; return p; }
     function wire(p, id) { const dc = p.dc; dc.onopen = () => { p.open = true; }; dc.onclose = () => { p.open = false; }; dc.onmessage = (e) => { if (!rx) return; try { rx(id, JSON.parse(e.data)); } catch (x) { /* mensagem ruim */ } }; if (dc.readyState === 'open') p.open = true; }
     function drop(id) { const p = peers[id]; if (!p) return; p.open = false; try { p.dc && p.dc.close(); } catch (e) { /* ok */ } try { p.pc.close(); } catch (e) { /* ok */ } delete peers[id]; }
@@ -4951,7 +4951,7 @@ const Party = (() => {
   })();
   let snapN = 0; const sentArr = [];                               // até 2 envios ao mesmo tempo (a internet do celular demora; o cliente ignora fotos mais velhas)
   const NXR = window.__NXR = window.__NXR || {};                      // tempos reais de envio, para o diagnóstico de rede (Configurações)
-  const putSnap = (obj) => { if (!rid) return; if (P2P.active && P2P.fast() && P2P.sendAll(JSON.stringify(obj))) { sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); return; } if (snapN >= 2) return; snapN++; const t0 = performance.now(); FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { NXR.snap = Math.round(performance.now() - t0); snapN--; sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); }); };
+  const putSnap = (obj) => { if (!rid) return; if (P2P.active && P2P.fast() && P2P.sendAll(JSON.stringify(obj))) { sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); return; } if (snapN >= 4) return; snapN++; const t0 = performance.now(); FBase.put('rsnap/' + rid, obj).catch(() => {}).then(() => { NXR.snap = Math.round(performance.now() - t0); snapN--; sentArr.push(performance.now()); if (sentArr.length > 60) sentArr.shift(); }); };
   const sentRate = () => { const now = performance.now(); return sentArr.filter((t) => now - t < 2000).length / 2; };
   let inBusy = false, inQueued = null;
   const putIn = (obj) => { if (!rid) return; if (P2P.active && P2P.sendTo(P2P.ownerId, JSON.stringify(obj))) return; if (inBusy) { inQueued = obj; return; } inBusy = true; const t0 = performance.now(); FBase.put('rin/' + rid + '/' + myId(), obj).catch(() => {}).then(() => { NXR.inp = Math.round(performance.now() - t0); inBusy = false; if (inQueued) { const q = inQueued; inQueued = null; putIn(q); } }); };
@@ -4959,7 +4959,7 @@ const Party = (() => {
   let resetSnapTs = () => {};                                        // quando o comando da partida passa para outro celular, o relógio dele é outro: zera a comparação
   const listenSnap = (cb) => { let lastTs = 0; resetSnapTs = () => { lastTs = 0; }; P2P.onRx((id, S) => { if (S && S.u && S.ts > lastTs) { lastTs = S.ts; cb(S); } }); const un = FBase.listen('rsnap/' + rid, (t) => { if (t && t.ts !== undefined) { if (t.ts <= lastTs) return; lastTs = t.ts; } cb(t); }, { stall: 2000, stallPoll: 250, coalesce: 25 }); return () => { un(); P2P.onRx(null); }; };
   const listenIn = (cb) => { P2P.onRx((id, I) => { if (I) cb({ [id]: I }); }); const un = FBase.listen('rin/' + rid, cb, { stall: 4000, stallPoll: 250 }); return () => { un(); P2P.onRx(null); }; };
-  return { setAgain, resetSnapTs: () => resetSnapTs(), p2pHost: P2P.hostConnect, p2pJoin: P2P.join, p2pStop: P2P.stop, p2pFast: P2P.fast, sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
+  return { setAgain, p2pOpen: () => P2P.fast(), resetSnapTs: () => resetSnapTs(), p2pHost: P2P.hostConnect, p2pJoin: P2P.join, p2pStop: P2P.stop, p2pFast: P2P.fast, sentRate, members, isOwner, ensureOwn, join, leave, setReady, refreshMe, start, markLoaded, waitLoaded, play, backToLobby, putSnap, putIn, listenSnap, listenIn,
     get active() { return !!rid; }, get room() { return room; }, get id() { return rid; }, get me() { return members().find((m) => m.id === myId()) || null; },
     set onChange(f) { onChange = f; }, set onMatch(f) { onMatch = f; }, set onPlay(f) { onPlay = f; }, set onGone(f) { onGone = f; } };
 })();
@@ -5266,7 +5266,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v109</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v110</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -5678,8 +5678,8 @@ const netDiag = (() => {                                            // medidor d
     if (!netMatch || !game) { if (el) el.hidden = true; return; }
     if (!el) { el = document.createElement('div'); el.style.cssText = 'position:fixed;left:8px;bottom:4px;font:600 11px monospace;color:#fff;opacity:.5;z-index:60;pointer-events:none;text-shadow:0 1px 2px #000'; document.body.appendChild(el); }
     el.hidden = false;
-    if (netMatch.role === 'host') el.textContent = 'rede (teste): enviando ' + Party.sentRate().toFixed(1) + '/s';
-    else { const s = game.netStats(); el.textContent = 'rede (teste): recebendo ' + s.rate.toFixed(1) + '/s · última há ' + (s.gap < 0 ? '-' : s.gap + ' ms'); }
+    if (netMatch.role === 'host') el.textContent = 'rede (teste): ' + (Party.p2pFast() ? 'direto' : 'banco') + ' · enviando ' + Party.sentRate().toFixed(1) + '/s';
+    else { const s = game.netStats(); el.textContent = 'rede (teste): ' + (Party.p2pFast() ? 'direto' : 'banco') + ' · recebendo ' + s.rate.toFixed(1) + '/s · última há ' + (s.gap < 0 ? '-' : s.gap + ' ms'); }
   }, 500);
   return true;
 })();
