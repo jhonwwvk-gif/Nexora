@@ -2280,6 +2280,9 @@ const gsfx = (() => {
   const vol = (d) => Math.max(0.15, 1 - d / 700);                // mais longe, mais baixo
   return {
     init,
+    gasWarn() { if (!ok('gw', 0.5)) return; tone(520, 780, 0.22, 'square', 0.12); tone(520, 780, 0.22, 'square', 0.12, 0.28); },
+    gasHiss() { if (!ok('gh', 0.32)) return; noise(0.34, 0.16, 6500, 2500, 'bandpass', 0, 2); tone(90, 70, 0.3, 'sawtooth', 0.04); },
+    gasZap() { if (!ok('gz', 0.2)) return; tone(900, 120, 0.16, 'sawtooth', 0.14); noise(0.12, 0.2, 7000, 1500, 'highpass'); },
     shot() { if (!ok('shot', 0.03)) return; tone(1500, 260, 0.09, 'square', 0.13); noise(0.06, 0.2, 5000, 1500, 'highpass'); },
     wave() { if (!ok('wave', 0.1)) return; tone(130, 45, 0.35, 'sine', 0.5); noise(0.4, 0.35, 700, 120); tone(260, 90, 0.2, 'sawtooth', 0.12, 0.05); },
     superHugi() { if (!ok('sh', 0.2)) return; tone(220, 1100, 0.18, 'sawtooth', 0.2); tone(900, 120, 0.6, 'square', 0.14, 0.1); noise(0.6, 0.3, 4000, 300, 'bandpass', 0, 2); tone(70, 40, 0.5, 'sine', 0.5); },
@@ -2466,7 +2469,7 @@ function createGame(host, A, hooks) {
     hero.sinceHit = 0; gsfx.hurt();
     hero.hp = Math.max(0, hero.hp - dmg); pop(hero.x, hero.y - GM_HERO.height - 20, dmg, '#ff5a5a');
     if (hero.id === 'drak') hero.charge = Math.min(supNeed(), hero.charge + supNeed() * HEROES.drak.super.chargePer1000Damage * dmg / 1000);   // Fúria de Dragão: 15% de Super a cada 1.000 de dano sofrido
-    if (hero.hp <= 0) { msOf(hero).deaths++; if (by) msOf(by).kills++; if (FW) fwLeft(); hero.dead = GM_RESPAWN; hero.dash = null; aim.on = false; el.atk.classList.remove('on', 'cx'); el.sup.classList.remove('on', 'cx'); pop(hero.x, hero.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); checkWipe(); }
+    if (hero.hp <= 0) { msOf(hero).deaths++; if (by) msOf(by).kills++; if (FW) { fwLeft(); fwPlace = fwAliveN; if (!ended) { ended = 'lose'; endT = 2.6; } } hero.dead = FW ? 1e9 : GM_RESPAWN; hero.dash = null; aim.on = false; el.atk.classList.remove('on', 'cx'); el.sup.classList.remove('on', 'cx'); pop(hero.x, hero.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); checkWipe(); }
   }
   function checkWipe() { if (!FW && !ended && hero.dead > 0 && bots.every((b) => b.dead > 0)) { ended = 'lose'; endT = 1.6; } }   // todos caídos ao mesmo tempo: derrota
   function spawnFx(u) { u.spawn = GM_SPAWNFX; rfx.push({ x: u.x, y: u.y, age: 0, life: 1.1 }); gsfx.wave && gsfx.wave(); }
@@ -2857,6 +2860,7 @@ function createGame(host, A, hooks) {
         if (dRob < Z + 20 && (mx || my)) { const inward = mx * rx + my * ry; if (inward < 0) { mx -= inward * rx; my -= inward * ry; } }
         if (inZone && b.state === 'fight' && !canRobot) { mx += rx * 0.9; my += ry * 0.9; }
       }
+      if (FW && gas) { const gt = gasSafeTarget(b.x, b.y); if (gt) { const [px, py] = pathStep(b.x, b.y, gt[0], gt[1]), ex = px - b.x, ey = py - b.y, el = Math.hypot(ex, ey) || 1; mx = ex / el; my = ey / el; b.face = mx >= 0 ? 1 : -1; } }   // tempestade perto: cancela tudo e corre para dentro da zona
       if (tg && td <= P.range && clearLine(b.x, b.y, tg.x, tg.y, 3)) {
         const ux = (tg.x - b.x) / (td || 1), uy = (tg.y - b.y) / (td || 1);
         const sup = b.charge >= need && b.state === 'fight';
@@ -3065,15 +3069,15 @@ function createGame(host, A, hooks) {
   }
   function fwHurt(b, dmg, by) {                                      // dano em um bot do Faroeste, com crédito de quem bateu
     if (b.dead > 0) return; const was = b.dead; const pa = atkBy; atkBy = by || null;
-    msOf(by).dmg += Math.max(0, Math.min(dmg, b.hp)); const hp0 = b.hp; hurtBot(b, dmg);
-    if (hp0 > 0 && b.hp <= 0) { msOf(by).kills++; fwOut(b, by); }
+    if (by) msOf(by).dmg += Math.max(0, Math.min(dmg, b.hp)); const hp0 = b.hp; hurtBot(b, dmg);
+    if (hp0 > 0 && b.hp <= 0) { if (by) msOf(by).kills++; fwOut(b, by); }
     atkBy = pa;
   }
   function fwOut(b, by) {                                            // eliminado de vez: sem renascer
     b.dead = 1e9; b.burst = 0; b.dash = null; const who = by ? (by === hero ? myName() : by.name) : '';
-    pop(b.x, b.y - GM_HERO.height - 52, who ? 'por ' + who : '', '#ffd24a'); fwLeft();
+    pop(b.x, b.y - GM_HERO.height - 52, who ? 'por ' + who : 'na tempestade', '#ffd24a'); fwLeft(); b.place = fwAliveN + 1;
   }
-  let fwAliveN = 10, fwWon = false;
+  let fwAliveN = 10, fwWon = false, fwPlace = 10;
   function fwLeft() { fwAliveN = (hero.dead <= 0 ? 1 : 0) + bots.filter((b) => b.dead <= 0).length; }
   function hitMini(m, dmg, fromAttack, silent) {
     if (m.bot) { if (!m.alive || atkBy === m.bot) return; if (!silent) gsfx.hit(dmg >= 500); fwHurt(m.bot, dmg, atkBy); if (fromAttack && !atkBy) gainCharge(fromAttack); m.flash = 0.12; return; }
@@ -3093,7 +3097,7 @@ function createGame(host, A, hooks) {
       b.bush = heroInBush(grid, b.x, b.y) && !(b.sinceAtk < 0.8);
     }
     heroP.x = hero.x; heroP.y = hero.y; heroP.alive = hero.dead <= 0;
-    fwLeft(); if (!fwWon && fwAliveN === 1 && hero.dead <= 0 && bots.length) { fwWon = true; pop(hero.x, hero.y - GM_HERO.height - 60, 'ÚLTIMO SOBREVIVENTE!', '#ffd24a'); }
+    fwLeft(); if (!fwWon && fwAliveN === 1 && hero.dead <= 0 && bots.length) { fwWon = true; fwPlace = 1; pop(hero.x, hero.y - GM_HERO.height - 60, 'ÚLTIMO SOBREVIVENTE!', '#ffd24a'); if (!ended) { ended = 'win'; endT = 2.8; } }
   }
   function updateMinis(dt) {
     const sm = GM_RUMBLE.speedMul[rm.phase];
@@ -3243,7 +3247,7 @@ function createGame(host, A, hooks) {
     else if (intro.stage === 'pan') { intro.pt += dt; if (intro.pt > 1.2) { intro = null; robot.cd = 1.5; } }
   }
   function updateRumble(dt) {
-    if (FW) { updateTnt(dt); return; }
+    if (FW) { updateTnt(dt); gasUpdate(dt); return; }
     if (intro) { updateIntro(dt); return; }
     if (ended === 'win') return;
     rm.clock += dt;
@@ -3268,8 +3272,108 @@ function createGame(host, A, hooks) {
     }
     if (rm.q.length) { rm.qT -= dt; if (rm.qT <= 0) { spawnBot(rm.q.shift()); rm.qT = GM_RUMBLE.spawnGap; } }   // 1 robô a cada 2 s
   }
+
+  // =====================================================================================================
+  // TEMPESTADE TÓXICA (Faroeste): zona quadrada que fecha das 4 bordas até o centro do mapa
+  // =====================================================================================================
+  const GAS = { delay: 20, warn: 15, speed: 8, half: 100, grace: 1.5, tick: 1, base: 0.20, step: 0.05, after: 5, hold: 25, bound: [100, 230, 2140, 2170] };   // speed px/s = 0,2 ladrilho/s; half = 5x5 ladrilhos
+  let gas = null;
+  function gasInit() {
+    const [L, T, R, B] = GAS.bound, idx = [], bs = grid.bush;
+    for (let i = 0; i < bs.length; i++) if (bs[i]) idx.push(i);
+    return { t: 0, L, T, R, B, cx: (L + R) / 2, cy: (T + B) / 2, on: false, hold: 0, bt: 0, idx, warned: 0, hiss: 0, inside: false };
+  }
+  const gasOut = (x, y) => !!gas && gas.on && (x < gas.L || x > gas.R || y < gas.T || y > gas.B);
+  function gasSafeTarget(x, y) {                                     // bot perto da borda (ou dentro do gás): ponto seguro dentro da zona; null = tudo bem
+    const g = gas; if (!g || g.t < GAS.warn) return null;
+    const hs = Math.min(g.R - g.L, g.B - g.T) / 2, m = Math.min(160, Math.max(40, hs * 0.6));   // 4 ladrilhos (menos quando a zona já é pequena)
+    if (Math.min(x - g.L, g.R - x, y - g.T, g.B - y) >= m) return null;
+    const sh = m + 40, c = (v, a, b2) => a > b2 ? (a + b2) / 2 : Math.min(Math.max(v, a), b2);
+    return [c(x, g.L + sh, g.R - sh), c(y, g.T + sh, g.B - sh)];
+  }
+  function gasHit(e, inside, dt, apply) {                            // 1,5 s de carência; depois 20% da vida máx. por segundo (+5% a cada tick após o 5º)
+    if (!inside) { e.gt = 0; e.gk = 0; return; }
+    e.gt = (e.gt || 0) + dt;
+    const k = e.gt >= GAS.grace ? Math.floor((e.gt - GAS.grace) / GAS.tick) + 1 : 0;
+    while ((e.gk || 0) < k) { e.gk = (e.gk || 0) + 1; apply(Math.max(1, Math.round(e.maxHp * (GAS.base + Math.max(0, e.gk - GAS.after) * GAS.step)))); }
+  }
+  function gasUpdate(dt) {
+    const g = gas; if (!g || ended) return;
+    g.t += dt;
+    if (g.t >= GAS.warn && g.warned < 1) { g.warned = 1; gsfx.gasWarn(); }
+    if (g.t >= GAS.delay - 3 && g.warned < 2) { g.warned = 2; gsfx.gasWarn(); }
+    if (g.t >= GAS.delay) {
+      g.on = true;
+      const mv = GAS.speed * dt, h = g.hold > GAS.hold ? 12 : GAS.half;   // zona final presa por muito tempo: fecha mais um pouco (a partida precisa acabar)
+      g.L = Math.min(g.cx - h, g.L + mv); g.R = Math.max(g.cx + h, g.R - mv); g.T = Math.min(g.cy - h, g.T + mv); g.B = Math.max(g.cy + h, g.B - mv);
+      if (g.L >= g.cx - GAS.half - 0.5 && g.T >= g.cy - GAS.half - 0.5) g.hold += dt;
+      g.bt -= dt; if (g.bt <= 0) { g.bt = 0.25; gasDissolve(); }
+      for (const b of bots) if (b.dead <= 0) gasHit(b, gasOut(b.x, b.y), dt, (d) => fwHurt(b, d, null));
+      if (hero.dead <= 0) {
+        const o = gasOut(hero.x, hero.y); g.inside = o;
+        if (o) { g.hiss -= dt; if (g.hiss <= 0) { g.hiss = 0.35; gsfx.gasHiss(); } }
+        const k0 = hero.gk || 0; gasHit(hero, o, dt, (d) => { gsfx.gasZap(); hurtHero(d, null); }); void k0;
+      } else g.inside = false;
+    }
+  }
+  function gasDissolve() {                                           // moitas tocadas pela borda da tempestade somem
+    const g = gas, cols = grid.cols, C = grid.cell, keep = []; let ch = false;
+    for (const i of g.idx) { const x = (i % cols + 0.5) * C, y = (Math.floor(i / cols) + 0.5) * C; if (x < g.L || x > g.R || y < g.T || y > g.B) { grid.bush[i] = 0; ch = true; } else keep.push(i); }
+    g.idx = keep;
+    if (ch) ar.grass = ar.grass.filter((p) => p.x >= g.L && p.x <= g.R && p.y - 10 >= g.T && p.y - 10 <= g.B);
+  }
+  function drawGas() {
+    const g = gas; if (!g) return;
+    const [bL, bT, bR, bB] = GAS.bound, ox = -cam.x, oy = -cam.y, tt = t || 0;
+    const sL = g.L + ox, sT = g.T + oy, sW = g.R - g.L, sH = g.B - g.T;
+    if (g.on) {
+      ctx.save(); ctx.beginPath(); ctx.rect(bL + ox, bT + oy, bR - bL, bB - bT); ctx.rect(sL, sT, sW, sH); ctx.clip('evenodd');
+      ctx.fillStyle = 'rgba(20,150,80,.55)'; ctx.fillRect(0, 0, GM_VW, GM_VH);
+      const CS = 150, i0 = Math.floor(cam.x / CS) - 1, i1 = Math.ceil((cam.x + GM_VW) / CS), j0 = Math.floor(cam.y / CS) - 1, j1 = Math.ceil((cam.y + GM_VH) / CS);
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        const sd = ((i * 73856093) ^ (j * 19349663)) >>> 0, a = (sd % 628) / 100;
+        const px = i * CS + CS / 2 + Math.sin(tt * 0.7 + a) * 45 + ox, py = j * CS + CS / 2 + Math.cos(tt * 0.55 + a * 1.7) * 45 + oy, r = 95 + (sd % 40);
+        const gr = ctx.createRadialGradient(px, py, 2, px, py, r), cy = (sd >> 3) & 1;
+        gr.addColorStop(0, cy ? 'rgba(70,230,255,.34)' : 'rgba(150,255,90,.34)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gr; ctx.fillRect(px - r, py - r, r * 2, r * 2);
+      }
+      ctx.strokeStyle = 'rgba(60,240,255,.16)'; ctx.lineWidth = 34; ctx.strokeRect(sL, sT, sW, sH);
+      ctx.strokeStyle = 'rgba(90,255,200,.28)'; ctx.lineWidth = 16; ctx.strokeRect(sL, sT, sW, sH);
+      ctx.restore();
+    }
+    const pre = !g.on && g.t >= GAS.warn;                          // antes de começar: borda piscando mostra de onde ela vem
+    if (g.on || pre) {
+      const al = pre ? 0.35 + 0.35 * Math.sin(tt * 8) : 1;
+      ctx.save(); ctx.globalAlpha = Math.max(0.1, al); ctx.lineWidth = 3; ctx.strokeStyle = '#7dfff0'; ctx.strokeRect(sL, sT, sW, sH);
+      ctx.lineWidth = 2; ctx.strokeStyle = '#f4fff0'; ctx.setLineDash([14, 12]); ctx.lineDashOffset = -tt * 50; ctx.strokeRect(sL, sT, sW, sH); ctx.setLineDash([]);
+      if (g.on && Math.random() < 0.5) {                           // faíscas elétricas saindo da borda
+        const side = (Math.random() * 4) | 0, u = Math.random(); let x = side < 2 ? g.L + u * sW : (side === 2 ? g.L : g.R), y = side < 2 ? (side ? g.T : g.B) : g.T + u * sH;
+        const dx = side === 0 ? 0 : side === 1 ? 0 : side === 2 ? -1 : 1, dy = side === 0 ? 1 : side === 1 ? -1 : 0;   // aponta para fora
+        ctx.strokeStyle = '#d8ffff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x + ox, y + oy);
+        for (let k = 0; k < 5; k++) { x += dx * 12 + (Math.random() - 0.5) * 14 * (dx ? 1 : 2); y += dy * 12 + (Math.random() - 0.5) * 14 * (dy ? 1 : 2); ctx.lineTo(x + ox, y + oy); }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    if (g.inside && hero.dead <= 0) {                              // dentro do gás: vinheta verde/azul nas bordas da tela
+      const pu = 0.75 + 0.25 * Math.sin(tt * 6), gr = ctx.createRadialGradient(GM_VW / 2, GM_VH / 2, GM_VH * 0.25, GM_VW / 2, GM_VH / 2, GM_VW * 0.62);
+      gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.6, 'rgba(40,220,120,' + (0.28 * pu) + ')'); gr.addColorStop(1, 'rgba(30,200,255,' + (0.6 * pu) + ')');
+      ctx.fillStyle = gr; ctx.fillRect(0, 0, GM_VW, GM_VH);
+    }
+  }
+  function drawGasHud() {
+    const g = gas; if (!g) return;
+    let tx = '', col = '#7dfff0';
+    if (g.inside && hero.dead <= 0) { tx = '☣ SAIA DA TEMPESTADE!'; col = '#ff6a5a'; }
+    else if (g.t >= GAS.warn && !g.on) { tx = '⚠ TEMPESTADE TÓXICA EM ' + Math.max(1, Math.ceil(GAS.delay - g.t)) + 's'; col = '#ffe14a'; }
+    else if (g.on) { tx = g.hold > 0 ? '☣ ZONA FINAL' : '☣ TEMPESTADE FECHANDO'; }
+    if (!tx) return;
+    ctx.save(); ctx.font = '800 13px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.85)';
+    ctx.globalAlpha = (g.t >= GAS.warn && !g.on) || g.inside ? 0.65 + 0.35 * Math.sin((t || 0) * 9) : 0.85; ctx.fillStyle = col; ctx.strokeText(tx, GM_VW / 2, 44); ctx.fillText(tx, GM_VW / 2, 44); ctx.restore();
+  }
+
   function drawRumbleHud() {                                       // relógio no alto da tela e aviso de fase
-    if (FW) { ctx.save(); ctx.font = '800 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#ffd24a'; const tx = 'VIVOS: ' + fwAliveN; ctx.strokeText(tx, GM_VW / 2, 24); ctx.fillText(tx, GM_VW / 2, 24); ctx.restore(); return; }
+    if (FW) { drawGasHud(); ctx.save(); ctx.font = '800 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#ffd24a'; const tx = 'VIVOS: ' + fwAliveN; ctx.strokeText(tx, GM_VW / 2, 24); ctx.fillText(tx, GM_VW / 2, 24); ctx.restore(); return; }
     if (intro) { if (intro.t > 1.2 && intro.stage !== 'pan') { ctx.save(); ctx.font = '800 9px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.strokeText('toque para pular', GM_VW / 2, GM_VH - 12); ctx.fillText('toque para pular', GM_VW / 2, GM_VH - 12); ctx.restore(); } return; }
     const P = PAL[rm.phase], txt = rm.phase === 0 ? 'FURIOSO EM ' + fmtT(GM_RUMBLE.furiosoAt - rm.clock) : rm.phase === 1 ? 'MEGA FURIOSO EM ' + fmtT(GM_RUMBLE.megaAt - rm.clock) : 'MEGA FURIOSO!';
     ctx.save(); ctx.font = '800 11px system-ui,sans-serif'; ctx.textAlign = 'center'; const w = ctx.measureText(txt).width + 26;
@@ -3329,7 +3433,7 @@ function createGame(host, A, hooks) {
     const k = Math.min(1, dt * (intro ? 3 : 8)); cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k;
   }
   function update(dt) {
-    if (ended) { endT -= dt; if (endT <= 0 && !endSent) { endSent = true; hooks && hooks.onEnd && hooks.onEnd(ended === 'win', endStats()); } }
+    if (ended) { endT -= dt; if (endT <= 0 && !endSent) { endSent = true; hooks && hooks.onEnd && hooks.onEnd(ended === 'win', endStats(), FW ? fwPlace : 0); } }
     if (hero.spawn > 0) hero.spawn -= dt; for (const b of bots) if (b.spawn > 0) b.spawn -= dt;
     for (let i = rfx.length - 1; i >= 0; i--) { rfx[i].age += dt; if (rfx[i].age > rfx[i].life) rfx.splice(i, 1); }
     if (hero.dead > 0 && !ended) { hero.dead -= dt; if (hero.dead <= 0) respawn(); }
@@ -3842,7 +3946,7 @@ function createGame(host, A, hooks) {
     const shk = shakeT > 0 ? 3 : intro && intro.stage === 'roar' ? 3.2 * Math.min(1, (2.4 - intro.rt) / 0.6) : rm.roarT > 0 ? 3.2 * Math.min(1, rm.roarT / 0.6) : rm.stepShake > 0 ? 1.6 * Math.min(1, rm.stepShake / 0.1) : 0, shx = (Math.random() - 0.5) * shk, shy = (Math.random() - 0.5) * shk; cam.x += shx; cam.y += shy;
     ctx.save(); ctx.scale(GM_ZOOM, GM_ZOOM);
     arenaDraw(ctx, ar, cam, GM_VW, GM_VH, t, { y: hero.y, draw: () => drawHero(), extra: [...(FW ? [] : [{ y: robot.y, draw: drawRobot }, ...minis.filter((m) => m.alive || m.deadAge < 0.7).map((m) => ({ y: m.y, draw: () => drawMini(m) }))]), ...(wolf ? [{ y: wolf.y, draw: () => drawWolf() }] : []), ...bots.filter((b) => b.dead <= 0 && !fwHidden(b)).map((b) => ({ y: b.y, draw: () => drawHero(b) })), ...bwolves.map((w) => ({ y: w.y, draw: () => drawWolf(w) }))], hole: inBush(grid, hero.x, hero.y - GM_HERO.height * 0.5) ? { x: hero.x, y: hero.y } : null });
-    drawRangeRing(); drawWaves(); drawFlames(); drawShots(); drawMiniFx(); drawBotFx(); drawFX(); drawRespawnFx(); if (!FW) drawEnemyBars(); for (const b of bots) if (!fwHidden(b)) drawBars(b); drawBars(); drawRumbleHud();
+    drawRangeRing(); drawWaves(); drawFlames(); drawShots(); drawMiniFx(); drawBotFx(); drawFX(); drawRespawnFx(); if (!FW) drawEnemyBars(); for (const b of bots) if (!fwHidden(b)) drawBars(b); drawBars(); drawGas(); drawRumbleHud();
     ctx.restore(); cam.x -= shx; cam.y -= shy;
   }
 
@@ -4063,7 +4167,7 @@ function createGame(host, A, hooks) {
       const sp = FW ? ar.spawns[Math.floor(Math.random() * ar.spawns.length)] : ar.spawns.find((p) => p[1] > ar.h * 0.6 && Math.abs(p[0] - ar.w / 2) < 500) || ar.spawns[0];
       hero = { id: heroId, x: sp[0], y: sp[1], face: 1, side: null, circuits: 0, lvl: level || 5, baseHp: hpAtLevel(heroId, level || 5), moving: false, walk: 0, bush: false, speed: speed || 1, hp: hpAtLevel(heroId, level || 5), maxHp: hpAtLevel(heroId, level || 5), dash: null, ammo: GM_BARS.max, fuel: GM_FLAME.max, charge: 0, dead: 0, reveal: 0, sinceHit: 99, yaw: 0, yawT: 0, look: [0, 1], lookHold: 0 };
       if (NET.role === 'client') { bots.length = 0; bbul.length = 0; bfx.length = 0; bwolves.length = 0; } else makeBots(sp);
-      minis.length = 0; fwSelf = hero; fwWon = false; fwAliveN = FW ? 10 : 0; if (FW) for (const b of bots) b.dead = 0;
+      minis.length = 0; fwSelf = hero; fwWon = false; fwPlace = 10; fwAliveN = FW ? 10 : 0; gas = FW ? gasInit() : null; if (FW) for (const b of bots) b.dead = 0;
       robot = FW ? { x: -9000, y: -9000, r: 1, hp: 1, cd: 99, flash: 0, recoil: 0, down: 1e9 } : { x: GM_ROBOT.x, y: GM_ROBOT.y, r: GM_ROBOT.r, hp: GM_ROBOT.hp, cd: 1.2, flash: 0, recoil: 0, down: 0 }; wolf = null;
       if (!sprites.wolf) sprites.wolf = load(A['sprite-wolf']);
       if (!sprites[heroId]) sprites[heroId] = load(A[GM_3D[heroId] ? GM_3D[heroId].key : 'sprite-' + heroId]);
@@ -4102,7 +4206,7 @@ function createGame(host, A, hooks) {
       NET.lastTs = 0; NET.curTs = undefined; NET.snapAt = performance.now(); NET.got = 0; NET.applied = 0; NET.lost = false; NET.snap = null; NET.arr.length = 0;
       for (const o of [hero, robot, wolf, ...bots, ...minis]) if (o) o.sTs = undefined;
     },                                                                         // foto do estado (só o amigo usa)
-    get net() { return NET; }, get ended() { return ended; },
+    get net() { return NET; }, get ended() { return ended; }, get gas() { return gas; },
     _dbg() { return { NET, hero, ar, debris, robot, bullets, zones, minis, ebul, rm, bots, bwolves, missiles, get intro() { return intro; }, skipIntro, spawnBot }; },   // só para testes
     stop() { running = false; cancelAnimationFrame(raf); gsfx.flame(false); },
     get hero() { return hero; }, get robot() { return robot; }, get wolf() { return wolf; }, shoot, castSuper, grid, arena: ar,
@@ -5559,7 +5663,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v120</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v121</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
@@ -6079,8 +6183,8 @@ function rsGoAgain() {                                                 // quem a
   leaveGameToLobby();
   if (!owner) setTimeout(() => Party.setReady(true), 700); else toast('Todos que quiseram jogar de novo estão na sala. Aperte COMEÇAR PARTIDA.');
 }
-function onMatchEnd(win, stats) {
-  const before = store.get(), place = win ? 1 : 10;                      // vitória = 1º lugar; derrota = 10º (regra do Documento Mestre: só se ganha no 1º ou se perde no 10º)
+function onMatchEnd(win, stats, fwPlace) {
+  const before = store.get(), place = fwPlace > 0 ? fwPlace : win ? 1 : 10;                      // vitória = 1º lugar; derrota = 10º (regra do Documento Mestre: só se ganha no 1º ou se perde no 10º)
   const r = finishMatch(before, place);
   store.update(() => r.state);
   const gained = r.state.trophies - before.trophies, gotOrb = r.state.orbs.ready > before.orbs.ready;
