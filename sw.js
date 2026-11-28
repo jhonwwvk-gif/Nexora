@@ -1,6 +1,6 @@
 // NEXORA — service worker v103: busca SEMPRE a versão nova do jogo na internet primeiro (assim atualizar o index.html no GitHub chega ao app);
 // só usa a cópia guardada se estiver sem internet.
-const CACHE = 'nexora-v118';
+const CACHE = 'nexora-v119';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {

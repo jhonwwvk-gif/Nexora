@@ -2455,12 +2455,12 @@ function createGame(host, A, hooks) {
     if (fromAttack) gainCharge(fromAttack);
     if (robot.hp <= 0) { msOf(atkBy).kills++; robot.down = 1e9; gsfx.down(); pop(robot.x, robot.y - GM_ROBOT.h - 16, 'DESTRUÍDO', '#ff7a5a'); if (!ended) { ended = 'win'; endT = 2.4; shakeT = 0.5; for (const m of minis) if (m.alive) { m.alive = false; m.deadAge = 0; } } }   // derrotou o Mega Robô: vitória, ele para de gerar robôs
   }
-  function hurtHero(dmg) {
+  function hurtHero(dmg, by) {
     if (hero.dead > 0) return;
     hero.sinceHit = 0; gsfx.hurt();
     hero.hp = Math.max(0, hero.hp - dmg); pop(hero.x, hero.y - GM_HERO.height - 20, dmg, '#ff5a5a');
     if (hero.id === 'drak') hero.charge = Math.min(supNeed(), hero.charge + supNeed() * HEROES.drak.super.chargePer1000Damage * dmg / 1000);   // Fúria de Dragão: 15% de Super a cada 1.000 de dano sofrido
-    if (hero.hp <= 0) { msOf(hero).deaths++; hero.dead = GM_RESPAWN; hero.dash = null; aim.on = false; el.atk.classList.remove('on', 'cx'); el.sup.classList.remove('on', 'cx'); pop(hero.x, hero.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); checkWipe(); }
+    if (hero.hp <= 0) { msOf(hero).deaths++; if (by) msOf(by).kills++; if (FW) fwLeft(); hero.dead = GM_RESPAWN; hero.dash = null; aim.on = false; el.atk.classList.remove('on', 'cx'); el.sup.classList.remove('on', 'cx'); pop(hero.x, hero.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); checkWipe(); }
   }
   function checkWipe() { if (!FW && !ended && hero.dead > 0 && bots.every((b) => b.dead > 0)) { ended = 'lose'; endT = 1.6; } }   // todos caídos ao mesmo tempo: derrota
   function spawnFx(u) { u.spawn = GM_SPAWNFX; rfx.push({ x: u.x, y: u.y, age: 0, life: 1.1 }); gsfx.wave && gsfx.wave(); }
@@ -2534,14 +2534,14 @@ function createGame(host, A, hooks) {
   function updateZones(dt) {
     for (const e of botFoes()) if (e.nxm > 0) e.nxm -= dt;
     for (let i = zones.length - 1; i >= 0; i--) {
-      const z = zones[i]; z.age += dt;
+      const z = zones[i]; z.age += dt; fwSelf = z.owner || hero;
       if (z.k === 'fire') {
         z.acc += dt;
         while (z.acc >= 0.5) { z.acc -= 0.5; for (const e of botFoes()) if (Math.hypot(e.x - z.x, e.y - z.y) < z.r + e.r * 0.6) nocFoeDmg(z.owner, e, Math.round(NOC.attack.residualDps * 0.5)); }
         if (z.age > z.life) zones.splice(i, 1);
       } else {
         if (z.age < z.life) {
-          for (const m of minis) if (m.alive && !m.returning) {
+          for (const m of minis) if (m.alive && !m.returning && !(m.bot && m.bot === z.owner)) {
             const dx = z.x - m.x, dy = z.y - m.y, dd = Math.hypot(dx, dy);
             if (dd < z.r + m.r) { m.slow = 0.25; if (dd > 6) { const st = 52 * dt, p = moveCircle(grid, m.x, m.y, dx / dd * st, dy / dd * st, Math.min(15, m.r * 0.6)); m.x = p.x; m.y = p.y; } }
           }
@@ -2554,6 +2554,7 @@ function createGame(host, A, hooks) {
         if (z.age > z.life + 0.5) zones.splice(i, 1);
       }
     }
+    fwSelf = hero;
   }
   function summonWolf(px, py, w) {                                   // o circuito caiu: fumaça de poder e o lobo aparece
     wolf = { x: px, y: py, hp: w.hp, maxHp: w.hp, face: hero.face, walk: 0, bite: 0.3, lunge: 0, stuck: 0, side: 0, moving: false, born: 0 };
@@ -2706,16 +2707,16 @@ function createGame(host, A, hooks) {
   function hurtBot(b, dmg) {
     if (b.dead > 0) return;
     b.sinceHurt = 0; b.hp = Math.max(0, b.hp - dmg); pop(b.x, b.y - GM_HERO.height - 20, dmg, '#ff5a5a');
-    if (b.hp <= 0) { msOf(b).deaths++; b.dead = GM_RESPAWN; pop(b.x, b.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); setTimeout(checkWipe, 0); for (let i = bwolves.length - 1; i >= 0; i--) if (bwolves[i].owner === b) bwolves.splice(i, 1); }
+    if (b.hp <= 0) { msOf(b).deaths++; b.dead = FW ? 1e9 : GM_RESPAWN; pop(b.x, b.y - GM_HERO.height - 34, 'ELIMINADO', '#fff'); setTimeout(checkWipe, 0); for (let i = bwolves.length - 1; i >= 0; i--) if (bwolves[i].owner === b) bwolves.splice(i, 1); }
   }
   function hurtBWolf(w, dmg) { w.hp -= dmg; pop(w.x, w.y - GM_WOLF.height - 10, dmg, '#ff5a5a'); if (w.hp <= 0) { w.dead = true; pop(w.x, w.y - 50, 'LOBO CAIU', '#d9a0ff'); } }
   function makeBots(sp) {
     bots.length = 0; bbul.length = 0; bfx.length = 0; bwolves.length = 0;
-    const ids = ['hugi', 'drak', 'jubi'], names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
+    const ids = FW ? ['hugi', 'drak', 'jubi', 'noctus'] : ['hugi', 'drak', 'jubi'], names = BOT_NAMES.slice().sort(() => Math.random() - 0.5);
     const near = ar.spawns.filter((p) => p !== sp).sort((a, b) => Math.hypot(a[0] - sp[0], a[1] - sp[1]) - Math.hypot(b[0] - sp[0], b[1] - sp[1]));
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < (FW ? 9 : 2); i++) {
       const fr = NET.role === 'host' && NET.seats[i + 1] ? NET.seats[i + 1] : null;                  // vaga de um amigo de verdade: o herói dele, controlado à distância
-      const id = fr ? fr.hero : ids[Math.floor(Math.random() * 3)], p = near[i] || [sp[0] + (i ? 40 : -40), sp[1]], brave = 0.2 + Math.random() * 0.8;
+      const id = fr ? fr.hero : ids[Math.floor(Math.random() * ids.length)], p = near[i] || [sp[0] + (i ? 40 : -40), sp[1]], brave = 0.2 + Math.random() * 0.8;
       if (!sprites[id]) sprites[id] = load(A['sprite-' + id]);
       if (GM_WALK[id] && !sprites[id + 'walk']) sprites[id + 'walk'] = load(A[GM_WALK[id].key]);
       const lv = fr ? Math.max(1, Math.min(5, fr.lvl || 5)) : 5, hpv = fr ? hpAtLevel(id, lv) : HEROES[id].hp;
@@ -2724,8 +2725,10 @@ function createGame(host, A, hooks) {
     }
   }
   let quiet = false;                                                 // números de dano dos bots não aparecem (menos desenho)
+  let fwSelf = null;                                                // Faroeste: quem está atacando agora (não acerta a si mesmo)
+  const heroP = { hero: true, x: 0, y: 0, r: GM_HERO.radius, h: GM_HERO.height, alive: true, returning: false, born: 1, flash: 0, slow: 0 };   // o herói visto como alvo pelos bots
   const botHit = (b, e, dmg, gain) => { if (b && b.remote) dmg = Math.round(dmg * b.lvf) + b.circuits * POWER.atkAdd; const pa = atkBy; atkBy = b || null; quiet = true; if (e === robot) hitRobot(dmg, false); else hitMini(e, dmg, false); quiet = false; atkBy = pa; if (b) { b.sinceAtk = 0; if (gain) b.charge = Math.min(GM_SUP.hits[b.id], b.charge + gain); } };
-  const botFoes = () => [...minis.filter((m) => m.alive && !m.returning), ...(robot && robot.down <= 0 ? [robot] : [])];
+  const botFoes = () => FW ? [...minis.filter((m) => m.alive && m.bot !== fwSelf), ...(heroP.alive && fwSelf !== hero ? [heroP] : [])] : [...minis.filter((m) => m.alive && !m.returning), ...(robot && robot.down <= 0 ? [robot] : [])];
   // ataque/Super de um amigo (jogador remoto) com os mesmos golpes dos aliados; também acerta as Caixas Nexo (a IA não)
   const rdm = (b, v) => Math.round(v * b.lvf) + b.circuits * POWER.atkAdd;
   function botFire(b, d, sup, dist) {
@@ -2776,20 +2779,21 @@ function createGame(host, A, hooks) {
     for (let i = bbul.length - 1; i >= 0; i--) {                       // tiros dos bots (Hugi; Super do Hugi e bolas do Drak atravessam)
       const b = bbul[i], st = b.sp * dt, rr0 = b.r || 6; b.x += b.dx * st; b.y += b.dy * st; b.left -= st; let gone = b.left <= 0 || solidAt(grid, b.x, b.y + (b.fire ? 0 : GM_HERO.height * 0.42));
       const by = b.y + (b.fire ? 0 : GM_HERO.height * 0.42);
-      if (!gone) for (const m of minis) if (m.alive && !m.returning && !(b.hit && b.hit.has(m)) && Math.hypot(b.x - m.x, by - m.y) < m.r + rr0) { botHit(b.owner, m, b.dmg, b.big ? 0 : 1); if (b.noc) { b.dn = 1; nocPassive(b.owner, m); } if (b.big) b.hit.add(m); else { gone = true; break; } }
+      if (!gone) for (const m of minis) if (m.alive && !m.returning && m.bot !== b.owner && !(b.hit && b.hit.has(m)) && Math.hypot(b.x - m.x, by - m.y) < m.r + rr0) { botHit(b.owner, m, b.dmg, b.big ? 0 : 1); if (b.noc) { b.dn = 1; nocPassive(b.owner, m); } if (b.big) b.hit.add(m); else { gone = true; break; } }
+      if (!gone && FW && hero.dead <= 0 && !(b.hit && b.hit.has(heroP)) && Math.hypot(b.x - hero.x, by - hero.y) < GM_HERO.radius + rr0) { botHit(b.owner, heroP, b.dmg, b.big ? 0 : 1); if (b.noc) b.dn = 1; if (b.big) b.hit.add(heroP); else gone = true; }
       if (!gone && robot && robot.down <= 0 && !(b.hit && b.hit.has(robot)) && Math.hypot(b.x - robot.x, by - robot.y) < robot.r + rr0) { botHit(b.owner, robot, b.dmg, b.big ? 0 : 1); if (b.noc) { b.dn = 1; nocPassive(b.owner, robot); } if (b.big) b.hit.add(robot); else gone = true; }
       if (!gone && b.owner && b.owner.remote) { const bx = boxNear(b.x, by, b.y); if (bx && !(b.hit && b.hit.has(bx))) { boxHit(bx.c, bx.r, rdm(b.owner, b.dmg)); if (b.big) b.hit.add(bx); else gone = true; } if (b.big) breakBand(b.x, by, b.dx, b.dy, 17); }
       if (gone) { if (b.noc && !b.dn) nocGround(b.x, b.y, b.owner); sparks.push({ x: b.x, y: b.y, t: 0, c: b.noc ? '#b44cff' : (b.fire ? '#ff8a1f' : '#ffb81f') }); bbul.splice(i, 1); }
     }
     for (let i = bfx.length - 1; i >= 0; i--) {
       const f = bfx[i]; f.age += dt; if (f.k === 'flame') { f.x += f.vx * dt; f.y += f.vy * dt; }
-      if (f.k === 'wave2' && f.age >= f.delay) { for (const e of botFoes()) { const vx = e.x - f.x, vy = e.y - f.y, al = vx * f.dx + vy * f.dy, pp = Math.abs(vx * f.dy - vy * f.dx); if (al > -e.r && al < 150 + e.r && pp < 30 + e.r) botHit(f.owner, e, f.dmg, 0.5); } bfx.splice(i, 1); continue; }
+      if (f.k === 'wave2' && f.age >= f.delay) { fwSelf = f.owner; for (const e of botFoes()) { const vx = e.x - f.x, vy = e.y - f.y, al = vx * f.dx + vy * f.dy, pp = Math.abs(vx * f.dy - vy * f.dx); if (al > -e.r && al < 150 + e.r && pp < 30 + e.r) botHit(f.owner, e, f.dmg, 0.5); } fwSelf = hero; bfx.splice(i, 1); continue; }
       if (f.age > f.life) bfx.splice(i, 1);
     }
     for (let i = bwolves.length - 1; i >= 0; i--) {                    // lobos invocados pelos bots (Jubi)
       const w = bwolves[i]; if (w.dead || w.owner.dead > 0) { bwolves.splice(i, 1); continue; }
       const W = D.jubi.super.wolf; w.born += dt; w.bite -= dt; if (w.lunge > 0) w.lunge -= dt; w.moving = false;
-      let en = null, ed = 1e9; for (const e of botFoes()) { const dd = Math.hypot(e.x - w.x, e.y - w.y) - e.r; if (dd < ed && dd < 260) { ed = dd; en = e; } }
+      fwSelf = w.owner; let en = null, ed = 1e9; for (const e of botFoes()) { const dd = Math.hypot(e.x - w.x, e.y - w.y) - e.r; if (dd < ed && dd < 260) { ed = dd; en = e; } }
       let tx = null, ty = null;
       if (en) { const reach = GM_WOLF.r + 8; if (ed > reach) { tx = en.x; ty = en.y; } else { w.face = en.x >= w.x ? 1 : -1; if (w.bite <= 0) { w.bite = GM_WOLF.biteGap; w.lunge = 0.18; gsfx.bite(); botHit(w.owner.remote ? w.owner : null, en, W.biteDamageLevel5, 0); } } }
       else if (Math.hypot(w.owner.x - w.x, w.owner.y - w.y) > GM_WOLF.follow) { tx = w.owner.x; ty = w.owner.y; }
@@ -2816,9 +2820,12 @@ function createGame(host, A, hooks) {
       if (b.state === 'fight') { if (hpf < rAt) { if (!b.decided) { b.decided = true; b.keep = Math.random() < 0.4 + b.brave * 0.5; } if (!b.keep || hpf < rAt * 0.5) b.state = 'retreat'; } else b.decided = false; }
       else if (hpf >= 0.5) { b.state = 'fight'; b.decided = false; b.safe = null; }
       let tg = null, td = 1e9, nf = null, nd = 1e9;
-      for (const m of minis) if (m.alive && !m.returning && m.born > 0.3) { const dd = Math.hypot(m.x - b.x, m.y - b.y); if (dd < nd) { nd = dd; nf = m; } }
+      fwSelf = b;
+      for (const m of minis) if (m.alive && !m.returning && m.born > 0.3 && m.bot !== b) { const dd = Math.hypot(m.x - b.x, m.y - b.y); if (dd < nd) { nd = dd; nf = m; } }
+      if (FW && hero.dead <= 0) { const dh = Math.hypot(hero.x - b.x, hero.y - b.y); if (dh < nd && (!hero.bush || dh < 110)) { nd = dh; nf = heroP; } }
       const canRobot = !!robot && robot.down <= 0;                       // sempre avança no mega robô; antes limpa os robôs/combos que estão perto
-      if (b.state === 'fight') { if (nf && nd < 260) { tg = nf; td = nd; } else if (canRobot) { tg = robot; td = dRob; } else if (nf && nd < 400) { tg = nf; td = nd; } }
+      if (FW) { if (b.state === 'fight' && nf) { tg = nf; td = nd; } else if (nf && nd < BOT_AI[b.id].range) { tg = nf; td = nd; } }
+      else if (b.state === 'fight') { if (nf && nd < 260) { tg = nf; td = nd; } else if (canRobot) { tg = robot; td = dRob; } else if (nf && nd < 400) { tg = nf; td = nd; } }
       else if (nf && nd < BOT_AI[b.id].range) { tg = nf; td = nd; }       // recuando: continua atirando em quem estiver ao alcance
       if (b.state === 'retreat') {
         let ax = 0, ay = 0; if (nf && nd < 160) { ax += (b.x - nf.x) / (nd || 1); ay += (b.y - nf.y) / (nd || 1); }
@@ -2881,6 +2888,7 @@ function createGame(host, A, hooks) {
       if (robot) { const dx = b.x - robot.x, dy = b.y - robot.y, dd = Math.hypot(dx, dy), mn = robot.r + GM_HERO.radius; if (dd < mn && dd > 0) { b.x = robot.x + dx / dd * mn; b.y = robot.y + dy / dd * mn; } }   // o robô é sólido
       b.side = GM_WALK[b.id] ? (b.face >= 0 ? 'dir' : 'esq') : null;
     }
+    fwSelf = hero;
   }
 
   // ---------- Noctus: desenho ----------
@@ -3049,11 +3057,37 @@ function createGame(host, A, hooks) {
     minis.push({ nid: ++NET.nid, type, x, y, hp: B.hp, max: B.hp, r: B.r, h: B.h, alive: true, deadAge: 0, cd: 0.8 + Math.random() * 0.6, flash: 0, recoil: 0, wind: 0, strike: 0, face: 1, moving: false, walk: Math.random() * 6, born: 0, stuck: 0, side: 0, sideT: 0 });
     booms.push({ x, y, age: 0.25 }); gsfx.launch(0);
   }
+  function fwHurt(b, dmg, by) {                                      // dano em um bot do Faroeste, com crédito de quem bateu
+    if (b.dead > 0) return; const was = b.dead; const pa = atkBy; atkBy = by || null;
+    msOf(by).dmg += Math.max(0, Math.min(dmg, b.hp)); const hp0 = b.hp; hurtBot(b, dmg);
+    if (hp0 > 0 && b.hp <= 0) { msOf(by).kills++; fwOut(b, by); }
+    atkBy = pa;
+  }
+  function fwOut(b, by) {                                            // eliminado de vez: sem renascer
+    b.dead = 1e9; b.burst = 0; b.dash = null; const who = by ? (by === hero ? myName() : by.name) : '';
+    pop(b.x, b.y - GM_HERO.height - 52, who ? 'por ' + who : '', '#ffd24a'); fwLeft();
+  }
+  let fwAliveN = 10, fwWon = false;
+  function fwLeft() { fwAliveN = (hero.dead <= 0 ? 1 : 0) + bots.filter((b) => b.dead <= 0).length; }
   function hitMini(m, dmg, fromAttack, silent) {
+    if (m.bot) { if (!m.alive || atkBy === m.bot) return; if (!silent) gsfx.hit(dmg >= 500); fwHurt(m.bot, dmg, atkBy); if (fromAttack && !atkBy) gainCharge(fromAttack); m.flash = 0.12; return; }
+    if (m.hero) { if (!atkBy || !m.alive) return; hurtHero(dmg, atkBy); return; }
     if (!m.alive) return;
     msOf(atkBy).dmg += Math.max(0, Math.min(dmg, m.hp)); m.hp -= dmg; m.flash = 0.12; pop(m.x + (Math.random() - .5) * 20, m.y - m.h - 6, dmg, '#ffe066'); if (!silent) gsfx.hit(dmg >= 500);
     if (fromAttack) gainCharge(fromAttack);
     if (m.hp <= 0) { msOf(atkBy).kills++; m.alive = false; m.deadAge = 0; if (!m.returning) rm.dead[m.type]++; pop(m.x, m.y - m.h - 18, 'DESTRUÍDO', '#ff7a5a'); gsfx.down(); booms.push({ x: m.x, y: m.y - 20, age: 0.05 }); }
+  }
+  function fwSync(dt) {                                              // bots e herói viram alvos (proxies) para os ataques dos heróis
+    for (const b of bots) {
+      let m = b.px;
+      if (!m) { m = b.px = { nid: ++NET.nid, bot: b, type: 'fw', x: b.x, y: b.y, lx: b.x, ly: b.y, hp: 1, max: 1, r: GM_HERO.radius, h: GM_HERO.height, alive: true, deadAge: 0, flash: 0, recoil: 0, born: 1, face: 1, moving: false, slow: 0, returning: false }; minis.push(m); }
+      if (m.x !== m.lx || m.y !== m.ly) { b.x = m.x; b.y = m.y; }       // puxado pelo portal do Noctus, etc.
+      if (m.flash > 0) m.flash -= dt; if (m.slow > 0) m.slow -= dt; if (m.nxm > 0) m.nxm -= dt;
+      m.alive = b.dead <= 0; m.x = m.lx = b.x; m.y = m.ly = b.y; m.face = b.face;
+      b.bush = heroInBush(grid, b.x, b.y) && !(b.sinceAtk < 0.8);
+    }
+    heroP.x = hero.x; heroP.y = hero.y; heroP.alive = hero.dead <= 0;
+    fwLeft(); if (!fwWon && fwAliveN === 1 && hero.dead <= 0 && bots.length) { fwWon = true; pop(hero.x, hero.y - GM_HERO.height - 60, 'ÚLTIMO SOBREVIVENTE!', '#ffd24a'); }
   }
   function updateMinis(dt) {
     const sm = GM_RUMBLE.speedMul[rm.phase];
@@ -3229,7 +3263,7 @@ function createGame(host, A, hooks) {
     if (rm.q.length) { rm.qT -= dt; if (rm.qT <= 0) { spawnBot(rm.q.shift()); rm.qT = GM_RUMBLE.spawnGap; } }   // 1 robô a cada 2 s
   }
   function drawRumbleHud() {                                       // relógio no alto da tela e aviso de fase
-    if (FW) return;
+    if (FW) { ctx.save(); ctx.font = '800 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#ffd24a'; const tx = 'VIVOS: ' + fwAliveN; ctx.strokeText(tx, GM_VW / 2, 24); ctx.fillText(tx, GM_VW / 2, 24); ctx.restore(); return; }
     if (intro) { if (intro.t > 1.2 && intro.stage !== 'pan') { ctx.save(); ctx.font = '800 9px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.strokeText('toque para pular', GM_VW / 2, GM_VH - 12); ctx.fillText('toque para pular', GM_VW / 2, GM_VH - 12); ctx.restore(); } return; }
     const P = PAL[rm.phase], txt = rm.phase === 0 ? 'FURIOSO EM ' + fmtT(GM_RUMBLE.furiosoAt - rm.clock) : rm.phase === 1 ? 'MEGA FURIOSO EM ' + fmtT(GM_RUMBLE.megaAt - rm.clock) : 'MEGA FURIOSO!';
     ctx.save(); ctx.font = '800 11px system-ui,sans-serif'; ctx.textAlign = 'center'; const w = ctx.measureText(txt).width + 26;
@@ -3408,7 +3442,7 @@ function createGame(host, A, hooks) {
     }
     if (alive) { hero.sinceHit += dt; if (hero.sinceHit >= GM_HEAL.delay && hero.hp < hero.maxHp) hero.hp = Math.min(hero.maxHp, hero.hp + hero.maxHp * GM_HEAL.rate * dt); }   // recupera vida depois de um tempo sem apanhar
     hero.bush = heroInBush(grid, hero.x, hero.y) && !(hero.reveal > 0);   // basta uma parte do corpo tocar o arbusto
-    updateRobot(dt); updateMinis(dt); updateBots(dt); updatePower(dt);
+    if (FW) fwSync(dt); else { updateRobot(dt); updateMinis(dt); } updateBots(dt); updatePower(dt);
     cool -= dt; if (hero.reveal > 0) hero.reveal -= dt;
     updateZones(dt);
     for (let i = bullets.length - 1; i >= 0; i--) {                    // voa reto; some ao bater em parede/objeto ou no inimigo
@@ -3594,7 +3628,7 @@ function createGame(host, A, hooks) {
     if (k > 0) { ctx.fillStyle = k > 0.3 ? '#47e04a' : '#ff5a3a'; rr(bx, by, Math.max(bh, bw * k), bh, 3.5); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,.35)'; rr(bx + 2, by + 1, Math.max(0, bw * k - 4), 2, 1); ctx.fill(); }
     ctx.font = '800 9px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#fff';
     ctx.strokeText(Math.ceil(h.hp), cx, by - 8); ctx.fillText(Math.ceil(h.hp), cx, by - 8);
-    { const nm = h === hero ? myName() : h.name; ctx.font = '800 10px system-ui,sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.fillStyle = h === hero ? '#ffe9a8' : '#9fe8ff'; ctx.strokeText(nm, cx, by - 21); ctx.fillText(nm, cx, by - 21); ctx.fillStyle = '#fff'; }
+    { const nm = h === hero ? myName() : h.name; ctx.font = '800 10px system-ui,sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.fillStyle = h === hero ? '#ffe9a8' : (FW ? '#ff9a9a' : '#9fe8ff'); ctx.strokeText(nm, cx, by - 21); ctx.fillText(nm, cx, by - 21); ctx.fillStyle = '#fff'; }
     if (h === hero) { const im = sprites.power, ix2 = bx + bw + 4;                           // Circuitos de Poder da partida, ao lado da barra de vida
       if (im && im.complete) ctx.drawImage(im, 3 * 192, 0, 192, 192, ix2, by + bh / 2 - 10, 20, 20);
       ctx.font = '800 11px system-ui,sans-serif'; ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.fillStyle = '#9dff8a'; ctx.strokeText('x' + h.circuits, ix2 + 21, by + bh / 2); ctx.fillText('x' + h.circuits, ix2 + 21, by + bh / 2); ctx.textAlign = 'center'; }
@@ -3796,12 +3830,13 @@ function createGame(host, A, hooks) {
     ctx.fillStyle = inside ? `rgba(255,50,30,${0.10 + pulse * 0.06})` : 'rgba(255,70,50,.06)'; ctx.fill();
     ctx.setLineDash([12, 9]); ctx.lineDashOffset = -t * 12; ctx.lineWidth = 3; ctx.strokeStyle = inside ? `rgba(255,60,40,${0.7 + pulse * 0.25})` : 'rgba(255,90,70,.5)'; ctx.stroke(); ctx.restore();
   }
+  const fwHidden = (b) => FW && b.bush && Math.hypot(b.x - hero.x, b.y - hero.y) > 110;   // bot no arbusto some (menos perto do herói ou logo após atacar)
   function draw() {
     resize();
     const shk = shakeT > 0 ? 3 : intro && intro.stage === 'roar' ? 3.2 * Math.min(1, (2.4 - intro.rt) / 0.6) : rm.roarT > 0 ? 3.2 * Math.min(1, rm.roarT / 0.6) : rm.stepShake > 0 ? 1.6 * Math.min(1, rm.stepShake / 0.1) : 0, shx = (Math.random() - 0.5) * shk, shy = (Math.random() - 0.5) * shk; cam.x += shx; cam.y += shy;
     ctx.save(); ctx.scale(GM_ZOOM, GM_ZOOM);
-    arenaDraw(ctx, ar, cam, GM_VW, GM_VH, t, { y: hero.y, draw: () => drawHero(), extra: [{ y: robot.y, draw: drawRobot }, ...minis.filter((m) => m.alive || m.deadAge < 0.7).map((m) => ({ y: m.y, draw: () => drawMini(m) })), ...(wolf ? [{ y: wolf.y, draw: () => drawWolf() }] : []), ...bots.filter((b) => b.dead <= 0).map((b) => ({ y: b.y, draw: () => drawHero(b) })), ...bwolves.map((w) => ({ y: w.y, draw: () => drawWolf(w) }))], hole: inBush(grid, hero.x, hero.y - GM_HERO.height * 0.5) ? { x: hero.x, y: hero.y } : null });
-    drawRangeRing(); drawWaves(); drawFlames(); drawShots(); drawMiniFx(); drawBotFx(); drawFX(); drawRespawnFx(); drawEnemyBars(); for (const b of bots) drawBars(b); drawBars(); drawRumbleHud();
+    arenaDraw(ctx, ar, cam, GM_VW, GM_VH, t, { y: hero.y, draw: () => drawHero(), extra: [...(FW ? [] : [{ y: robot.y, draw: drawRobot }, ...minis.filter((m) => m.alive || m.deadAge < 0.7).map((m) => ({ y: m.y, draw: () => drawMini(m) }))]), ...(wolf ? [{ y: wolf.y, draw: () => drawWolf() }] : []), ...bots.filter((b) => b.dead <= 0 && !fwHidden(b)).map((b) => ({ y: b.y, draw: () => drawHero(b) })), ...bwolves.map((w) => ({ y: w.y, draw: () => drawWolf(w) }))], hole: inBush(grid, hero.x, hero.y - GM_HERO.height * 0.5) ? { x: hero.x, y: hero.y } : null });
+    drawRangeRing(); drawWaves(); drawFlames(); drawShots(); drawMiniFx(); drawBotFx(); drawFX(); drawRespawnFx(); if (!FW) drawEnemyBars(); for (const b of bots) if (!fwHidden(b)) drawBars(b); drawBars(); drawRumbleHud();
     ctx.restore(); cam.x -= shx; cam.y -= shy;
   }
 
@@ -4021,7 +4056,8 @@ function createGame(host, A, hooks) {
       minis.length = 0; ebul.length = 0; rm.clock = 0; rm.phase = 0; rm.wave = 0; rm.dead = { sniper: 0, colosso: 0, rastreador: 0 }; rm.q.length = 0; rm.qT = 0; rm.roarT = 0; rm.barrage = null; rm.bcd = 3; rm.rt = 0; rm.banner = ''; rm.bannerT = 0; intro = null;
       const sp = FW ? ar.spawns[Math.floor(Math.random() * ar.spawns.length)] : ar.spawns.find((p) => p[1] > ar.h * 0.6 && Math.abs(p[0] - ar.w / 2) < 500) || ar.spawns[0];
       hero = { id: heroId, x: sp[0], y: sp[1], face: 1, side: null, circuits: 0, lvl: level || 5, baseHp: hpAtLevel(heroId, level || 5), moving: false, walk: 0, bush: false, speed: speed || 1, hp: hpAtLevel(heroId, level || 5), maxHp: hpAtLevel(heroId, level || 5), dash: null, ammo: GM_BARS.max, fuel: GM_FLAME.max, charge: 0, dead: 0, reveal: 0, sinceHit: 99, yaw: 0, yawT: 0, look: [0, 1], lookHold: 0 };
-      if (NET.role === 'client' || FW) { bots.length = 0; bbul.length = 0; bfx.length = 0; bwolves.length = 0; } else makeBots(sp);
+      if (NET.role === 'client') { bots.length = 0; bbul.length = 0; bfx.length = 0; bwolves.length = 0; } else makeBots(sp);
+      minis.length = 0; fwSelf = hero; fwWon = false; fwAliveN = FW ? 10 : 0; if (FW) for (const b of bots) b.dead = 0;
       robot = FW ? { x: -9000, y: -9000, r: 1, hp: 1, cd: 99, flash: 0, recoil: 0, down: 1e9 } : { x: GM_ROBOT.x, y: GM_ROBOT.y, r: GM_ROBOT.r, hp: GM_ROBOT.hp, cd: 1.2, flash: 0, recoil: 0, down: 0 }; wolf = null;
       if (!sprites.wolf) sprites.wolf = load(A['sprite-wolf']);
       if (!sprites[heroId]) sprites[heroId] = load(A[GM_3D[heroId] ? GM_3D[heroId].key : 'sprite-' + heroId]);
@@ -5517,7 +5553,7 @@ function openModal(html, onClose) {
 
 function openSettings() {
   const vol = Math.round(store.get().settings.musicVolume * 100);
-  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v118</div>
+  const w = openModal(`<h2 class="d">CONFIGURAÇÕES</h2><div style="width:520px"><div class="d" style="text-align:right;font-size:14px;opacity:.6;margin-bottom:4px">NEXORA v119</div>
     <p><b>Volume da música do jogo</b>: <span id="vol-n">${vol}</span>%</p>
     <input id="vol" type="range" min="0" max="100" value="${vol}" aria-label="Volume da música">
     <p class="hint">O volume vale para a música do lobby e para a da partida. Ele fica salvo.</p>
